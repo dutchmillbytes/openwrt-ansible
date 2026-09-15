@@ -1,4 +1,11 @@
 ---
+- name: Preflight and name system sections
+  ansible.builtin.include_role:
+    name: uci_migration
+  vars:
+    uci_migration_selected_packages: ["system"]
+  when: "'system' not in (uci_migration_prepared_packages | default([]))"
+
 # Configure system section
 - name: Configure system section
   ansible.builtin.include_tasks: system.yml
@@ -8,8 +15,9 @@
   block:
     # Commit changes
     - name: Commit changes
-      uci:
+      community.openwrt.uci:
         command: commit
+        config: "system"
       notify: Reload system
 
     # Reload system service

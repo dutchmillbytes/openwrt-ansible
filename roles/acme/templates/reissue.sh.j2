@@ -1,0 +1,49 @@
+#!/bin/sh
+# Normal package renewal reuses the acme.sh saved SAN list. Reissue with the
+# desired domains under the same package lock and retain a private backup.
+set -eu
+umask 077
+state_dir=$(uci -q get acme.{{ acme_section_id }}.state_dir || true)
+state_dir=${state_dir:-/etc/acme}
+main_domain={{ acme_main_domain | quote }}
+{% if acme_issue_spec.key_type | default('ec256') is match('^ec') %}
+domain_dir="$state_dir/${main_domain}_ecc"
+{% else %}
+domain_dir="$state_dir/$main_domain"
+{% endif %}
+# Lock is held for both backup and issuance, matching acme-acmesh's lock.
+mkdir -p "$state_dir" /var/run/acme/challenge
+exec 9>"$state_dir/acme-sh.lock"
+flock -x 9
+backup=$(mktemp -d /tmp/ansible-acme-backup.XXXXXX)
+had_state=0
+if [ -d "$domain_dir" ]; then
+    cp -Rp "$domain_dir" "$backup/previous"
+    had_state=1
+fi
+success=0
+cleanup() {
+    rc=$?
+    trap - EXIT HUP INT TERM
+    if [ "$success" = 0 ]; then
+        [ ! -d "$domain_dir" ] || mv "$domain_dir" "$backup/failed"
+        [ "$had_state" = 0 ] || cp -Rp "$backup/previous" "$domain_dir"
+    fi
+    exit "$rc"
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+/usr/lib/acme/client/acme.sh --issue --force --home "$state_dir" \
+{% for domain in acme_issue_spec.domains %}
+    -d {{ domain | quote }} \
+{% endfor %}
+    --keylength {{ (acme_issue_spec.key_type | default('ec256') | regex_replace('^ec', 'ec-') | regex_replace('^rsa', '')) | quote }} \
+    --accountemail {{ acme.account_email | quote }} \
+    --server {{ acme_issue_spec.acme_server | quote }} \
+    --days {{ acme_issue_spec.days | default(10) | int }} \
+    --webroot /var/run/acme/challenge
+# Validate the result before reloading any service. Existing package symlinks
+# still point at domain_dir; a failure restores that directory from backup.
+{{ acme_certificate_check_cmd }}
+success=1

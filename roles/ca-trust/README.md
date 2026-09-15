@@ -44,4 +44,4 @@ ca_trust_certs:
 
 ## Dependencies
 
-- `gekmihesg.openwrt`
+- `community.openwrt.init`

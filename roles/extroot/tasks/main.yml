@@ -30,8 +30,9 @@
   block:
     # Commit changes
     - name: Commit changes
-      uci:
+      community.openwrt.uci:
         command: commit
+        config: "fstab"
       notify: ["Reboot device", "Wait for device to boot up"]
 
     # Reboot device

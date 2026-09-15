@@ -1,31 +1,57 @@
 ---
+- name: Preflight and name acme sections
+  ansible.builtin.include_role:
+    name: uci_migration
+  vars:
+    uci_migration_selected_packages: ["acme"]
+  when: "'acme' not in (uci_migration_prepared_packages | default([]))"
+
 # Configure acme section
 - name: Configure acme section
-  ansible.builtin.include_tasks: acme.yml
+  ansible.builtin.include_tasks:
+    file: acme.yml
+    apply:
+      no_log: true
+      diff: false
 
 # Configure cert sections
 - name: Configure cert section
-  ansible.builtin.include_tasks: cert.yml
+  ansible.builtin.include_tasks:
+    file: cert.yml
+    apply:
+      no_log: true
+      diff: false
   loop: "{{ acme_certs | default([]) }}"
   loop_control:
     label: "{{ item.id | default('unnamed') }}"
 
 # Apply changes and reload acme service
 - name: Apply changes and reload acme
-  uci:
+  community.openwrt.uci:
     command: commit
+    config: "acme"
+  no_log: true
+  diff: false
   notify: Reload acme
 
 # Obtain the certificate now, not at midnight
 - name: Obtain certificate
-  ansible.builtin.include_tasks: issue.yml
+  ansible.builtin.include_tasks:
+    file: issue.yml
+    apply:
+      no_log: true
+      diff: false
   when:
     - acme_issue_now | default(true) | bool
     - acme_main_domain | default('') | length > 0
 
 # Serve the issued certificate from uhttpd
 - name: Configure uhttpd
-  ansible.builtin.include_tasks: uhttpd.yml
+  ansible.builtin.include_tasks:
+    file: uhttpd.yml
+    apply:
+      no_log: true
+      diff: false
   when:
     - acme_uhttpd_enabled | default(false) | bool
     - acme_uhttpd_domain | default('') | length > 0

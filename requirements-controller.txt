@@ -1,0 +1,2 @@
+# Python 3.12+; keep the controller isolated from system Ansible.
+ansible-core>=2.20,<2.21

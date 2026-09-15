@@ -25,15 +25,4 @@ pbr_service:
   webui_supported_protocol: []
 
 # PBR policies
-pbr_policies:
-  - id: ""
-    name: ""
-    state: ""
-    enabled: ""
-    interface: ""
-    src_addr: []
-    src_port: []
-    dest_addr: []
-    dest_port: []
-    proto: ""
-    chain: ""
+pbr_policies: []

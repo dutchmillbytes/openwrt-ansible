@@ -6,6 +6,7 @@ authors: ["flyoverhead"]
 description: Ansible collection for OpenWrt configuration
 license: ["GPL-3.0-only"]
 tags: ["openwrt", "configuration"]
-dependencies: {}
+dependencies:
+  community.openwrt: ">=1.7.0,<2.0.0"
 repository: https://github.com/flyoverhead/ansible-openwrt
 issues: https://github.com/flyoverhead/ansible-openwrt/issues

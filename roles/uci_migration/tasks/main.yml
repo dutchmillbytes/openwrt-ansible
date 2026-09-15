@@ -1,0 +1,30 @@
+---
+- name: Validate identities and migrate section names without changing options
+  uci_migrate:
+    packages: "{{ uci_migration_catalog | dict2items | selectattr('key', 'in', uci_migration_selected_packages) | items2dict }}"
+    mode: "{{ uci_migration_mode }}"
+    manifest_dir: "{{ uci_migration_manifest_dir }}"
+  register: uci_migration_result
+  ignore_errors: true
+  # Input can contain credentials. The action returns only section IDs, but
+  # no_log also prevents Ansible dumping its invocation arguments on errors.
+  no_log: true
+  diff: false
+
+- name: Report migration preflight failure
+  ansible.builtin.fail:
+    msg: "{{ uci_migration_result.msg }}"
+  when: uci_migration_result is failed
+
+- name: Record packages prepared during this play
+  ansible.builtin.set_fact:
+    uci_migration_prepared_packages: >-
+      {{ (uci_migration_prepared_packages | default([]))
+         | union(uci_migration_selected_packages) }}
+  when:
+    - uci_migration_result is succeeded
+    - uci_migration_mode == 'apply'
+
+- name: Report migration manifest
+  ansible.builtin.debug:
+    msg: "Migration manifest: {{ uci_migration_result.manifest_path }}"

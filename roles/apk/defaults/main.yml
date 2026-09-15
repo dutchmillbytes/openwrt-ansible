@@ -1,8 +1,5 @@
 ---
-# Package management for OpenWrt 24.10+, which replaced opkg with apk.
-#
-# The collection's other roles shell out to `opkg` and to the `opkg` Ansible
-# module; neither exists on these releases. Use this role instead.
+# Native community.openwrt.apk wrapper for OpenWrt 25.12+.
 
 # Packages to install.
 apk_packages: []

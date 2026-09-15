@@ -2,39 +2,7 @@
 # Default mesh status
 mesh_enabled: false
 
-# device section
-wireless_devices:
-  - id: ""
-    type: ""
-    disabled: ""
-    channel: ""
-    band: ""
-    htmode: ""
-    country: ""
-
-# interface section
-wireless_interfaces:
-  - id: ""
-    name: ""
-    state: ""
-    device: ""
-    network: []
-    mode: ""
-    disabled: ""
-    ssid: ""
-    mesh_id: ""
-    hidden: ""
-    isolate: ""
-    encryption: ""
-    key: ""
-    macfilter: ""
-    maclist: []
-    ieee80211r: ""
-    mobility_domain: ""
-    ft_over_ds: ""
-    ft_psk_generate_local: ""
-    mesh_fwding: ""
-    mesh_rssi_threshold: ""
-    mesh_gate_announcements: ""
-    mesh_hwmp_rootmode: ""
-    mesh_max_peer_links: ""
+# Empty lists make an unconfigured role a no-op. Every configured entry must
+# supply a stable named id; wifi interfaces also supply a semantic `find` map.
+wireless_devices: []
+wireless_interfaces: []

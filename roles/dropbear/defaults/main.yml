@@ -1,5 +1,7 @@
 ---
 # system section
+dropbear_section_id: "main"
+
 dropbear:
   enable: ""
   verbose: ""

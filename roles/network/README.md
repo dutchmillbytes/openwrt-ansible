@@ -20,6 +20,7 @@ OpenWRT `network` configuration
 | &emsp;`stp` | Enable the Spanning Tree Protocol (STP) which prevents network loops | `optional` | `boolean` | `0` |
 | &emsp;`igmp_snooping` | Enable IGMP snooping | `optional` | `boolean` | `0` |
 | &emsp;`ipv6` | Enable IPv6 support | `optional` | `boolean` | `0` |
+| &emsp;`arp_accept` | Learn new neighbour entries from gratuitous ARP requests and replies | `optional` | `boolean` | `0` |
 | `network_interfaces` | List of [network interfaces](https://openwrt.org/docs/guide-user/base-system/| &emsp;`igmp_snooping` | Enable IGMP snooping | `optional` | `boolean` | `0` |
 | &emsp;`id` | Unique interface ID | `mandatory` | `string` | `guest` |
 | &emsp;`state` | Interface status (`present` or `absent`) | `required` | `string` | `present` |
@@ -69,7 +70,7 @@ OpenWRT `network` configuration
 
 | Name | Description |
 | :--- | :--- |
-| `Ansible Role: openwrt` | [Ansible role by gekmihesg](https://github.com/gekmihesg/ansible-openwrt) for managing OpenWRT and derivatives |
+| `community.openwrt` | [community.openwrt collection](https://github.com/ansible-collections/community.openwrt) for managing OpenWRT and derivatives |
 
 ## Example Playbook
 

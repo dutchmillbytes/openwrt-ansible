@@ -1,39 +1,54 @@
 ---
-# Set state status for bridge-vlans
-- name: Set state status for bridge-vlan {{ item.id | default('@bridge-vlan[' ~ ansible_loop.index0 ~ ']') }}
-  ansible.builtin.set_fact:
-    network_bridge_vlan_state: "{{ item.state | default('present') }}"
+- name: Validate bridge VLAN section ID
+  ansible.builtin.assert:
+    that:
+      - item.id is defined
+      - item.id | length > 0
+      - item.id is match('^[A-Za-z0-9_]+$')
+    fail_msg: "Bridge VLANs require a stable named id, got {{ item.id | default('undefined') }}"
 
-# Delete bridge-vlan
-- name: Delete bridge-vlan {{ item.id | default('@bridge-vlan[' ~ ansible_loop.index0 ~ ']') }}
-  when: "'absent' in network_bridge_vlan_state"
-  uci:
+- name: Validate unique bridge VLAN identity for {{ item.id }}
+  community.openwrt.uci:
+    command: "find_all"
+    config: "network"
+    type: "bridge-vlan"
+    find:
+      device: "{{ item.device }}"
+      vlan: "{{ item.vlan }}"
+  register: named_section_matches
+  changed_when: false
+  check_mode: false
+
+- name: Require unique bridge VLAN identity for {{ item.id }}
+  ansible.builtin.assert:
+    that:
+      - named_section_matches.result_list is defined
+      - named_section_matches.result_list | length <= 1
+    fail_msg: >-
+      Bridge VLAN {{ item.device }}/{{ item.vlan }} matched
+      {{ named_section_matches.result_list | default([]) }}
+
+- name: Remove bridge VLAN {{ item.id }}
+  when: item.state | default('present') == 'absent'
+  community.openwrt.uci:
     command: "absent"
     config: "network"
-    section: "{{ item.id | default('@bridge-vlan[' ~ ansible_loop.index0 ~ ']') }}"
+    section: "{{ item.id }}"
     type: "bridge-vlan"
+    find:
+      device: "{{ item.device }}"
+      vlan: "{{ item.vlan }}"
 
-# Create and configure bridge-vlan
-- name: Create and configure bridge-vlan
-  when: "'present' in network_bridge_vlan_state"
-  block:
-    # Create bridge-vlan
-    - name: Create bridge-vlan {{ item.id | default('@bridge-vlan[' ~ ansible_loop.index0 ~ ']') }}
-      uci:
-        command: "add"
-        config: "network"
-        section: "{{ item.id | default('@bridge-vlan[' ~ ansible_loop.index0 ~ ']') }}"
-        type: "bridge-vlan"
-
-    # Configure bridge-vlan
-    - name: Configure bridge-vlan {{ item.id | default('@bridge-vlan[' ~ ansible_loop.index0 ~ ']') }}
-      uci:
-        command: "set"
-        config: "network"
-        section: "{{ item.id | default('@bridge-vlan[' ~ ansible_loop.index0 ~ ']') }}"
-        type: "bridge-vlan"
-        value:
-          device: "{{ item.device | default(omit) }}"
-          vlan: "{{ item.vlan | default(omit) }}"
-          ports: "{{ item.ports | default([]) | join(' ') }}"
-          
+- name: Configure bridge VLAN {{ item.id }}
+  when: item.state | default('present') == 'present'
+  community.openwrt.uci:
+    command: "section"
+    config: "network"
+    type: "bridge-vlan"
+    name: "{{ item.id }}"
+    find:
+      device: "{{ item.device }}"
+      vlan: "{{ item.vlan }}"
+    set_find: true
+    value:
+      ports: "{{ item.ports | default(omit) }}"

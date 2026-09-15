@@ -1,6 +1,6 @@
 ---
 # Reload dropbear service
 - name: Reload dropbear
-  ansible.builtin.service:
+  community.openwrt.service:
     name: dropbear
     state: reloaded

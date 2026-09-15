@@ -7,7 +7,7 @@
     ca_trust_marker: "{{ item.content.splitlines()[1] }}"
 
 - name: Install root CA {{ item.name }}
-  ansible.builtin.copy:
+  community.openwrt.copy:
     content: "{{ item.content }}"
     dest: "{{ ca_trust_dir }}/{{ item.name }}.crt"
     owner: "root"
@@ -20,7 +20,7 @@
 # playbook run repairs it. Do not template the whole bundle instead -- it is
 # ~224 KB of upstream roots this role has no business owning.
 - name: Check whether {{ item.name }} is already trusted
-  ansible.builtin.command:
+  community.openwrt.command:
     cmd: "grep -qF {{ ca_trust_marker | quote }} {{ ca_trust_bundle }}"
   register: ca_trust_check
   failed_when: false
@@ -30,6 +30,6 @@
   check_mode: false
 
 - name: Append {{ item.name }} to the system trust bundle
-  ansible.builtin.command:
+  community.openwrt.command:
     cmd: "/bin/sh -c 'cat {{ ca_trust_dir }}/{{ item.name }}.crt >> {{ ca_trust_bundle }}'"
   when: ca_trust_check.rc | default(1) != 0

@@ -1,21 +1,47 @@
 ---
+- name: Preflight and name wireless sections
+  ansible.builtin.include_role:
+    name: uci_migration
+  vars:
+    uci_migration_selected_packages: ["wireless"]
+  when: "'wireless' not in (uci_migration_prepared_packages | default([]))"
+
 # Install required packages
 - name: Install required packages
-  ansible.builtin.include_tasks: prepare.yml
+  ansible.builtin.include_tasks:
+    file: prepare.yml
+    apply:
+      no_log: true
+      diff: false
   when: mesh_enabled
   
 # Configure device section
 - name: Configure device section
-  ansible.builtin.include_tasks: device.yml
+  ansible.builtin.include_tasks:
+    file: device.yml
+    apply:
+      no_log: true
+      diff: false
   loop: "{{ wireless_devices | default([]) }}"
+  loop_control:
+    label: "{{ item.id | default('unnamed') }}"
 
 # Configure interface section
 - name: Configure interface section
-  ansible.builtin.include_tasks: interface.yml
+  ansible.builtin.include_tasks:
+    file: interface.yml
+    apply:
+      no_log: true
+      diff: false
   loop: "{{ wireless_interfaces | default([]) }}"
+  loop_control:
+    label: "{{ item.id | default('unnamed') }}"
 
 # Apply changes and reload wireless service
 - name: Apply changes and reload wireless
-  uci:
+  community.openwrt.uci:
     command: commit
+    config: "wireless"
+  no_log: true
+  diff: false
   notify: Reload wireless

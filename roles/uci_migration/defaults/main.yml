@@ -1,0 +1,105 @@
+---
+uci_migration_mode: apply
+uci_migration_selected_packages:
+- system
+- network
+- wireless
+- firewall
+- dhcp
+- dropbear
+- acme
+- uhttpd
+uci_migration_manifest_dir: '/tmp/ansible-uci-migration-manifests'
+uci_migration_catalog:
+  system:
+  - type: system
+    identity: []
+    entries:
+    - id: '{{ system_section_id | default(''main'') }}'
+  network:
+  - type: globals
+    identity: []
+    entries:
+    - id: globals
+  - type: device
+    entries: '{{ network_devices | default([]) }}'
+    identity:
+    - name
+  - type: bridge-vlan
+    entries: '{{ bridge_vlans | default([]) }}'
+    identity:
+    - device
+    - vlan
+  - type: interface
+    entries: '{{ network_interfaces | default([]) }}'
+  - type: rule
+    entries: '{{ network_rules | default([]) }}'
+  - type: route
+    entries: '{{ network_routes | default([]) }}'
+  wireless:
+  - type: wifi-device
+    entries: '{{ wireless_devices | default([]) }}'
+  - type: wifi-iface
+    entries: '{{ wireless_interfaces | default([]) }}'
+  firewall:
+  - type: defaults
+    identity: []
+    entries:
+    - id: '{{ firewall_defaults_section_id | default(''defaults'') }}'
+  - type: zone
+    entries: '{{ firewall_zones | default([]) }}'
+    identity:
+    - name
+  - type: forwarding
+    entries: '{{ firewall_forwardings | default([]) }}'
+    identity:
+    - src
+    - dest
+  - type: rule
+    entries: '{{ firewall_rules | default([]) }}'
+    identity:
+    - name
+  - type: redirect
+    entries: '{{ firewall_redirects | default([]) }}'
+    identity:
+    - name
+  - type: ipset
+    entries: '{{ firewall_ipsets | default([]) }}'
+    identity:
+    - name
+  - type: nat
+    entries: '{{ firewall_nats | default([]) }}'
+    identity:
+    - name
+  dhcp:
+  - type: dnsmasq
+    identity: []
+    entries:
+    - id: '{{ dhcp_dnsmasq_section_id | default(''main'') }}'
+  - type: dhcp
+    entries: '{{ dhcp_pools | default([]) }}'
+    identity:
+    - interface
+  - type: host
+    entries: '{{ dhcp_leases | default([]) }}'
+    identity:
+    - name
+  dropbear:
+  - type: dropbear
+    identity: []
+    entries:
+    - id: '{{ dropbear_section_id | default(''main'') }}'
+  acme:
+  - type: acme
+    identity: []
+    entries:
+    - id: '{{ acme_section_id | default(''main'') }}'
+  - type: cert
+    entries: '{{ acme_certs | default([]) }}'
+    identity:
+    - domains
+  uhttpd:
+  - type: uhttpd
+    entries:
+    - id: '{{ acme_uhttpd_section | default(''main'') }}'
+    identity: []

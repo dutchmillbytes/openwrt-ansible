@@ -1,47 +1,89 @@
 ---
-# Obtain the certificate now, rather than waiting for the nightly cron.
-#
-# Restarting the acme service does NOT issue anything -- it only registers the
-# `0 0 * * * /etc/init.d/acme renew` cron entry and prints "Nightly certificate
-# renewal enabled". Without this step a freshly configured device has no
-# certificate until midnight, and anything downstream (uhttpd) cannot be wired
-# up in the same run.
-#
-# Guarded on the certificate being absent, so this is a one-time action per
-# device; ongoing renewal is the cron's job.
+- name: Select the certificate managed by immediate issuance
+  ansible.builtin.set_fact:
+    acme_issue_spec: "{{ acme_certs | selectattr('domains', 'defined') | selectattr('domains', 'contains', acme_main_domain) | first }}"
 
-- name: Check whether the certificate already exists
-  ansible.builtin.stat:
-    path: "{{ acme_issue_cert_path }}"
-  register: acme_issue_stat
+- name: Validate immediate issuance configuration
+  ansible.builtin.assert:
+    that:
+      - acme_issue_spec.domains | length > 0
+      - acme_issue_spec.domains[0] == acme_main_domain
+      - acme_issue_spec.enabled | default('1') | string == '1'
+      - acme_issue_spec.state | default('present') == 'present'
+      - acme_issue_spec.domains | select('match', '^[A-Za-z0-9][A-Za-z0-9.*-]*$') | list | length == acme_issue_spec.domains | length
+      - acme_issue_spec.key_type | default('ec256') is match('^(ec(256|384|521)|rsa(2048|3072|4096))$')
 
-- name: Obtain the certificate
-  when: not acme_issue_stat.stat.exists
+- name: Build the read-only certificate validation command
+  ansible.builtin.set_fact:
+    acme_certificate_check_cmd: >-
+      /bin/sh -c {{ lookup('file', role_path ~ '/files/check-certificate.sh') | quote }} --
+      {{ acme_issue_cert_path | quote }} {{ (acme_issue_spec.days | default(10) | int) * 86400 }}
+      {{ acme_issue_spec.domains | map('quote') | join(' ') }}
+
+- name: Check actual certificate names and remaining validity
+  community.openwrt.command:
+    cmd: "{{ acme_certificate_check_cmd }}"
+    uses_shell: true
+  check_mode: false
+  changed_when: false
+  failed_when: acme_certificate_check.rc not in [0, 1, 2]
+  register: acme_certificate_check
+
+- name: Require OpenSSL for certificate validation
+  ansible.builtin.assert:
+    that: acme_certificate_check.rc != 2 or ansible_check_mode
+    fail_msg: Install openssl-util before running the ACME role.
+
+- name: Report certificate work during check mode
+  ansible.builtin.debug:
+    msg: Certificate issuance or SAN/validity verification is required; deferred in check mode.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - acme_certificate_check.rc != 0
+
+- name: Reconcile certificate content
+  when:
+    - not ansible_check_mode
+    - acme_certificate_check.rc == 1
   block:
-    # Returns immediately; issuance runs in the background.
-    - name: Trigger issuance
-      ansible.builtin.command:
-        cmd: "/etc/init.d/acme renew"
-      changed_when: true
+    - name: Check whether an issued certificate already exists
+      community.openwrt.stat:
+        path: "{{ acme_issue_cert_path }}"
+      register: acme_existing_cert
 
-    # So the run has to wait for it, or the certificate is not there yet when
-    # the next task wants to point a web server at it.
-    - name: Wait for the certificate to appear
-      ansible.builtin.command:
-        cmd: >-
-          /bin/sh -c 'n=0; while [ ! -f {{ acme_issue_cert_path }} ] &&
-          [ $n -lt {{ acme_issue_timeout // 2 }} ]; do sleep 2; n=$((n+1)); done;
-          [ -f {{ acme_issue_cert_path }} ]'
-      register: acme_issue_wait
-      failed_when: false
-      changed_when: false
-
-    - name: Report issuance failure
+    - name: Validate reissuance support before changing existing certificate state
       ansible.builtin.assert:
-        that: acme_issue_wait.rc == 0
-        success_msg: "Certificate issued: {{ acme_issue_cert_path }}"
-        fail_msg: >-
-          No certificate after {{ acme_issue_timeout }}s. Check `logread -e acme`
-          on the device -- common causes are the CA being unreachable, the root
-          CA not trusted (see the ca-trust role), or the ACME server failing to
-          reach this device on port 80 for the http-01 challenge.
+        that:
+          - acme_issue_spec.validation_method | default('webroot') == 'webroot'
+          - acme_issue_spec.staging | default('0') | string == '0'
+          - acme_issue_spec.acme_server | default('') | length > 0
+        fail_msg: Immediate reissuance supports production webroot certificates with an explicit ACME server.
+      when: acme_existing_cert.stat.exists
+
+    - name: Reissue existing webroot certificate with the desired SANs
+      community.openwrt.command:
+        cmd: >-
+          /bin/sh -c {{ lookup('template', role_path ~ '/templates/reissue.sh.j2') | quote }}
+        uses_shell: true
+      when: acme_existing_cert.stat.exists
+      changed_when: true
+      no_log: true
+      diff: false
+
+    - name: Trigger first issuance through the package integration
+      community.openwrt.command:
+        cmd: /etc/init.d/acme renew
+      changed_when: true
+      when: not acme_existing_cert.stat.exists
+
+    - name: Wait for a certificate with the requested SANs and validity
+      community.openwrt.command:
+        cmd: "{{ acme_certificate_check_cmd }}"
+        uses_shell: true
+      register: acme_issue_wait
+      changed_when: false
+      until: acme_issue_wait.rc == 0
+      retries: "{{ [1, acme_issue_timeout | int // 2] | max }}"
+      delay: 2
+      notify: Reload uhttpd

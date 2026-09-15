@@ -1,47 +1,61 @@
 ---
-# Set state status for network device
-- name: Set state status for network device {{ item.id | default('@device[' ~ ansible_loop.index0 ~ ']') }}
-  ansible.builtin.set_fact:
-    network_device_state: "{{ item.state | default('present') }}"
+- name: Validate network device section ID
+  ansible.builtin.assert:
+    that:
+      - item.id is defined
+      - item.id | length > 0
+      - item.id is match('^[A-Za-z0-9_]+$')
+    fail_msg: "Network devices require a stable named id, got {{ item.id | default('undefined') }}"
 
-# Delete network device
-- name: Delete network device {{ item.id | default('@device[' ~ ansible_loop.index0 ~ ']') }}
-  when: "'absent' in network_device_state"
-  uci:
+- name: Validate unique network device identity for {{ item.id }}
+  community.openwrt.uci:
+    command: "find_all"
+    config: "network"
+    type: "device"
+    find:
+      name: "{{ item.name }}"
+  register: named_section_matches
+  changed_when: false
+  check_mode: false
+
+- name: Require unique network device identity for {{ item.id }}
+  ansible.builtin.assert:
+    that:
+      - named_section_matches.result_list is defined
+      - named_section_matches.result_list | length <= 1
+    fail_msg: "Device name {{ item.name }} matched {{ named_section_matches.result_list | default([]) }}"
+
+- name: Remove network device {{ item.id }}
+  when: item.state | default('present') == 'absent'
+  community.openwrt.uci:
     command: "absent"
     config: "network"
-    section: "{{ item.id | default('@device[' ~ ansible_loop.index0 ~ ']') }}"
+    section: "{{ item.id }}"
     type: "device"
+    find:
+      name: "{{ item.name }}"
 
-# Create and configure network device
-- name: Create and configure network device
-  when: "'present' in network_device_state"
-  block:
-    # Create network device
-    - name: Create network device {{ item.id | default('@device[' ~ ansible_loop.index0 ~ ']') }}
-      uci:
-        command: "add"
-        config: "network"
-        section: "{{ item.id | default('@device[' ~ ansible_loop.index0 ~ ']') }}"
-        type: "device"
-
-    # Configure network device
-    - name: Configure network device {{ item.id | default('@device[' ~ ansible_loop.index0 ~ ']') }}
-      uci:
-        command: "set"
-        config: "network"
-        section: "{{ item.id | default('@device[' ~ ansible_loop.index0 ~ ']') }}"
-        type: "device"
-        value:
-          name: "{{ item.name | default(omit) }}"
-          type: "{{ item.type | default(omit) }}"
-          ports: "{{ item.ports | default([]) | join(' ') }}"
-          stp: "{{ item.stp | default(omit) }}"
-          vid: "{{ item.vid | default(omit) }}"
-          igmp_snooping: "{{ item.igmp_snooping | default(omit) }}"
-          ipv6: "{{ item.ipv6 | default(omit) }}"
-          arp_accept: "{{ item.arp_accept | default(omit) }}"
-          ifname: "{{ item.ifname | default(omit) }}"
-          rxpause: "{{ item.rxpause | default(omit) }}"
-          txpause: "{{ item.txpause | default(omit) }}"
-          autoneg: "{{ item.autoneg | default(omit) }}"
+- name: Configure network device {{ item.id }}
+  when: item.state | default('present') == 'present'
+  community.openwrt.uci:
+    command: "section"
+    config: "network"
+    type: "device"
+    name: "{{ item.id }}"
+    find:
+      name: "{{ item.name }}"
+    set_find: true
+    value:
+      type: "{{ item.type | default(omit) }}"
+      ports: "{{ item.ports | default(omit) }}"
+      vlan_filtering: "{{ item.vlan_filtering | default(omit) }}"
+      stp: "{{ item.stp | default(omit) }}"
+      vid: "{{ item.vid | default(omit) }}"
+      igmp_snooping: "{{ item.igmp_snooping | default(omit) }}"
+      ipv6: "{{ item.ipv6 | default(omit) }}"
+      arp_accept: "{{ item.arp_accept | default(omit) }}"
+      isolate: "{{ item.isolate | default(omit) }}"
+      ifname: "{{ item.ifname | default(omit) }}"
+      rxpause: "{{ item.rxpause | default(omit) }}"
+      txpause: "{{ item.txpause | default(omit) }}"
+      autoneg: "{{ item.autoneg | default(omit) }}"

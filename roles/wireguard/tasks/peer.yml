@@ -3,6 +3,33 @@
 - name: Configure user-defined wireguard peer
   when: wgpeer is defined and wgpeer | type_debug == "dict"
   block:
+    - name: Validate WireGuard peer section ID
+      ansible.builtin.assert:
+        that:
+          - wgpeer.id is defined
+          - wgpeer.id | length > 0
+          - wgpeer.id is match('^[A-Za-z0-9_]+$')
+
+    - name: Validate unique WireGuard peer identity for {{ wgpeer.id }}
+      community.openwrt.uci:
+        command: "find_all"
+        config: "network"
+        type: "wireguard_{{ wgpeer.wireguard_interface_name }}"
+        find:
+          public_key: "{{ wgpeer.public_key }}"
+      register: named_section_matches
+      changed_when: false
+      check_mode: false
+
+    - name: Require unique WireGuard peer identity for {{ wgpeer.id }}
+      ansible.builtin.assert:
+        that:
+          - named_section_matches.result_list is defined
+          - named_section_matches.result_list | length <= 1
+        fail_msg: >-
+          WireGuard public key matched
+          {{ named_section_matches.result_list | default([]) }}
+
     # Set state status for wireguard peer
     - name: Set state status for wireguard peer {{ wgpeer.id }}
       ansible.builtin.set_fact:
@@ -11,7 +38,7 @@
     # Delete wireguard peer
     - name: Delete wireguard peer {{ wgpeer.id }}
       when: "'absent' in wireguard_peer_state"
-      uci:
+      community.openwrt.uci:
         command: "absent"
         config: "network"
         section: "{{ wgpeer.id }}"
@@ -21,21 +48,16 @@
     - name: Create and configure wireguard peer
       when: "'present' in wireguard_peer_state"
       block:
-        # Create wireguard peer
-        - name: Create wireguard peer {{ wgpeer.id }}
-          uci:
-            command: "add"
-            config: "network"
-            section: "{{ wgpeer.id }}"
-            type: "wireguard_{{ wgpeer.wireguard_interface_name }}"
-
         # Configure wireguard peer
         - name: Configure wireguard peer {{ wgpeer.id }}
-          uci:
-            command: "set"
+          community.openwrt.uci:
+            command: "section"
             config: "network"
-            section: "{{ wgpeer.id }}"
             type: "wireguard_{{ wgpeer.wireguard_interface_name }}"
+            name: "{{ wgpeer.id }}"
+            find:
+              public_key: "{{ wgpeer.public_key }}"
+            set_find: true
             value:
               description: "{{ wgpeer.name | default(omit) }}"
               public_key: "{{ wgpeer.public_key | default(omit) }}"
@@ -50,17 +72,15 @@
 - name: Generate wireguard peer
   when: wgpeer is defined and wgpeer | type_debug == "str"
   block:
-    # Create wireguard peer
-    - name: Create wireguard peer {{ wgpeer }}
-      uci:
-        command: "add"
-        config: "network"
-        section: "{{ wgpeer }}"
-        type: "{{ wireguard_interface_name }}"
+    - name: Validate generated WireGuard peer section ID
+      ansible.builtin.assert:
+        that:
+          - wgpeer | length > 0
+          - wgpeer is match('^[A-Za-z0-9_]+$')
 
     # Check current wireguard private key
     - name: Check current wireguard private key
-      uci:
+      community.openwrt.uci:
         command: "get"
         config: "network"
         section: "{{ wgpeer }}.private_key"
@@ -87,7 +107,7 @@
       block:
         # Generate wireguard private key
         - name: Generate wireguard private key
-          ansible.builtin.command:
+          community.openwrt.command:
             cmd: "umask go= && wg genkey"
             uses_shell: true
           register: new_wireguard_private_key
@@ -99,25 +119,25 @@
 
         # Generate wireguard public key
         - name: Generate wireguard public key
-          ansible.builtin.command:
+          community.openwrt.command:
             cmd: 'umask go= && echo "{{ wireguard_private_key }}" | wg pubkey'
             uses_shell: true
           register: wireguard_public_key
 
         # Generate wireguard preshared key
         - name: Generate wireguard preshared key
-          ansible.builtin.command:
+          community.openwrt.command:
             cmd: "umask go= && wg genpsk"
             uses_shell: true
           register: wireguard_preshared_key
 
     # Configure wireguard peer
     - name: Configure wireguard peer {{ wgpeer }}
-      uci:
-        command: "set"
+      community.openwrt.uci:
+        command: "section"
         config: "network"
-        section: "{{ wgpeer }}"
         type: "{{ wireguard_interface_name }}"
+        name: "{{ wgpeer }}"
         value:
           description: "{{ wgpeer }}"
           private_key: "{{ wireguard_private_key | default(omit) }}"

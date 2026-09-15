@@ -1,44 +1,56 @@
 ---
-# Set state status for firewall zone
-- name: Set state status for firewall zone {{ item.id | default('@zone[-1]') }}
-  ansible.builtin.set_fact:
-    firewall_zone_state: "{{ item.state | default('present') }}"
+- name: Validate firewall zone section ID
+  ansible.builtin.assert:
+    that:
+      - item.id is defined
+      - item.id | length > 0
+      - item.id is match('^[A-Za-z0-9_]+$')
+    fail_msg: "Firewall zones require a stable named id, got {{ item.id | default('undefined') }}"
 
-# Delete firewall zone
-- name: Delete firewall zone {{ item.id }}
-  when: "'absent' in firewall_zone_state"
-  uci:
+- name: Validate unique firewall zone identity for {{ item.id }}
+  community.openwrt.uci:
+    command: "find_all"
+    config: "firewall"
+    type: "zone"
+    find:
+      name: "{{ item.name }}"
+  register: named_section_matches
+  changed_when: false
+  check_mode: false
+
+- name: Require unique firewall zone identity for {{ item.id }}
+  ansible.builtin.assert:
+    that:
+      - named_section_matches.result_list is defined
+      - named_section_matches.result_list | length <= 1
+    fail_msg: "Zone name {{ item.name }} matched {{ named_section_matches.result_list | default([]) }}"
+
+- name: Remove firewall zone {{ item.id }}
+  when: item.state | default('present') == 'absent'
+  community.openwrt.uci:
     command: "absent"
     config: "firewall"
     section: "{{ item.id }}"
     type: "zone"
+    find:
+      name: "{{ item.name }}"
 
-# Create and configure firewall zone
-- name: Create and configure firewall zone
-  when: "'present' in firewall_zone_state"
-  block:
-    # Create firewall zone
-    - name: Create firewall zone {{ item.id | default('@zone[-1]') }}
-      uci:
-        command: "add"
-        config: "firewall"
-        section: "{{ item.id | default('@zone[-1]') }}"
-        type: "zone"
-
-    # Configure firewall zone
-    - name: Configure firewall zone {{ item.id | default('@zone[-1]') }}
-      uci:
-        command: "set"
-        config: "firewall"
-        section: "{{ item.id | default('@zone[-1]') }}"
-        type: "zone"
-        value:
-          name: "{{ item.name | default(omit) }}"
-          network: "{{ item.network | default([]) | join(' ') }}"
-          masq: "{{ item.masq | default(omit) }}"
-          mtu_fix: "{{ item.mtu_fix | default(omit) }}"
-          input: "{{ item.input | default(omit) }}"
-          forward: "{{ item.forward | default(omit) }}"
-          output: "{{ item.output | default(omit) }}"
-          family: "{{ item.family | default(omit) }}"
-          enabled: "{{ item.enabled | default(omit) }}"
+- name: Configure firewall zone {{ item.id }}
+  when: item.state | default('present') == 'present'
+  community.openwrt.uci:
+    command: "section"
+    config: "firewall"
+    type: "zone"
+    name: "{{ item.id }}"
+    find:
+      name: "{{ item.name }}"
+    set_find: true
+    value:
+      network: "{{ item.network | default([]) | join(' ') }}"
+      masq: "{{ item.masq | default(omit) }}"
+      mtu_fix: "{{ item.mtu_fix | default(omit) }}"
+      input: "{{ item.input | default(omit) }}"
+      forward: "{{ item.forward | default(omit) }}"
+      output: "{{ item.output | default(omit) }}"
+      family: "{{ item.family | default(omit) }}"
+      enabled: "{{ item.enabled | default(omit) }}"

@@ -1,6 +1,11 @@
 # Ansible Collection - flyoverhead.openwrt
 
-Ansible collection for automative configuration of OpenWrt devices (without Python).
+Ansible collection for automated configuration of OpenWrt devices (without Python).
+
+The runtime dependency is `community.openwrt` (pinned to 1.7.0 in
+`requirements.yml`). Device operations use its explicit Python-free modules;
+controller assertions, includes and facts remain builtin Ansible actions.
+See [the test guide](tests/README.md) for setup and validation.
 
 ## Compatibilities
 
@@ -11,13 +16,13 @@ This collection was tested on
 
 ## Supported OS
 
-- OpenWrt 22.03
+- OpenWrt 23.05, 24.10 and 25.12 (individual optional roles may require opkg)
 
 ## Installation and Usage
 
 ### Requirements
 
-- Ansible `>=2.13`
+- Ansible-core `>=2.18` (the provided controller requirements use 2.20 with Python 3.12+)
 
 - Task `>=3.20`
 
@@ -33,7 +38,10 @@ Installing requirements:
 
 ```bash
 cd ansible-openwrt
-ansible-galaxy collection install -r requirements.yml
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-controller.txt
+ansible-galaxy collection install -r requirements.yml -p .collections
 ```
 
 ### Roles usage
@@ -54,8 +62,12 @@ Full documentation and usage examples of role `<role>` can be found in `roles/<r
   tags: configure_openwrt
 
   pre_tasks:
+    - name: Initialize OpenWrt modules
+      ansible.builtin.import_role:
+        name: community.openwrt.init
+
     - name: Update package cache
-      ansible.builtin.command:
+      community.openwrt.command:
         cmd: "opkg update"
       changed_when: false
 
@@ -63,7 +75,6 @@ Full documentation and usage examples of role `<role>` can be found in `roles/<r
     - extroot
     - system
     - network
-    - batman
     - wireless
     - wireguard
     - firewall
@@ -73,12 +84,12 @@ Full documentation and usage examples of role `<role>` can be found in `roles/<r
 
   post_tasks:
     - name: Reboot device
-      ansible.builtin.command:
+      community.openwrt.command:
         cmd: "reboot"
       changed_when: false
 ```
 
-> For `gekmihesg.openwrt` role works properly it is mandatory to use `openwrt` as a hosts group name. More details can be found at [gekmihesg/ansible-openwrt#ansible-role-openwrt](https://github.com/gekmihesg/ansible-openwrt#ansible-role-openwrt).
+> Group names are unrestricted. Initialize `community.openwrt.init` before remote modules; roles also declare it as a dependency.
 
 </details>
 
@@ -189,7 +200,7 @@ wireguard_server_port: "port"
 
 # Configure network devices
 network_devices:
-  - id: "@device[0]"
+  - id: "dev_br_lan"
     name: "br-lan"
     state: "present"
     type: "bridge"
@@ -242,42 +253,6 @@ network_interfaces:
   - id: "wan6"
     state: "absent"
 
-# Configure batman mesh network
-batman_enabled: true
-ath10k_ct_fix: true
-
-batman_network_interfaces:
-  - id: "bat0"
-    state: "present"
-    proto: "batadv"
-    routing_algo: "BATMAN_IV"
-    fragmentation: "1"
-    gw_mode: "server"
-    bridge_loop_avoidance: "1"
-    distributed_arp_table: "1"
-    multicast_mode: "1"
-    hop_penalty: "30"
-    delegate: "0"
-  - id: "batmesh"
-    state: "present"
-    proto: "batadv_hardif"
-    master: "bat0"
-    mtu: "2304"
-    delegate: "0"
-
-batman_wireless_interfaces:
-  - id: "mesh"
-    name: "mesh"
-    state: "present"
-    device: "{{ device_5g_radio }}"
-    network: ["batmesh"]
-    mode: "mesh"
-    mesh_id: "mesh"
-    mesh_fwding: "0"
-    encryption: "sae"
-    key: "{{ wifi_password }}"
-    disabled: "0"
-
 # Configure wireless network
 wireless_devices:
   - id: "{{ device_5g_radio }}"
@@ -293,6 +268,10 @@ wireless_devices:
 
 wireless_interfaces:
   - id: "lan5"
+    find:
+      device: "{{ device_5g_radio }}"
+      mode: "ap"
+      ssid: "lan5"
     name: "wlan5"
     state: "present"
     device: "{{ device_5g_radio }}"
@@ -307,6 +286,10 @@ wireless_interfaces:
     ft_psk_generate_local: "1"
     disabled: "0"
   - id: "iot5"
+    find:
+      device: "{{ device_5g_radio }}"
+      mode: "ap"
+      ssid: "iot5"
     name: "wiot5"
     state: "present"
     device: "{{ device_5g_radio }}"
@@ -321,6 +304,10 @@ wireless_interfaces:
     ft_psk_generate_local: "1"
     disabled: "0"
   - id: "iot2"
+    find:
+      device: "{{ device_2g_radio }}"
+      mode: "ap"
+      ssid: "iot2"
     name: "wiot2"
     state: "present"
     device: "{{ device_2g_radio }}"
@@ -336,8 +323,16 @@ wireless_interfaces:
     disabled: "0"
   - id: "default_radio0"
     state: "absent"
+    find:
+      device: "{{ device_2g_radio }}"
+      mode: "ap"
+      ssid: "OpenWrt"
   - id: "default_radio1"
     state: "absent"
+    find:
+      device: "{{ device_5g_radio }}"
+      mode: "ap"
+      ssid: "OpenWrt"
 
 # Configure dnsmasq and dhcp
 dhcp_common:
@@ -356,7 +351,8 @@ dhcp_common:
   nonegcache: "1"
 
 dhcp_pools:
-  - interface: "lan"
+  - id: "lan"
+    interface: "lan"
     state: "present"
     force: "1"
     dhcpv4: "server"
@@ -365,7 +361,8 @@ dhcp_pools:
     ra: "disabled"
     dhcpv6: "disabled"
     dns_service: "0"
-  - interface: "iot"
+  - id: "iot"
+    interface: "iot"
     state: "present"
     force: "1"
     dhcpv4: "server"
@@ -423,7 +420,7 @@ firewall_defaults:
   flow_offloading_hw: "1"
 
 firewall_zones:
-  - id: "@zone[0]"
+  - id: "lan"
     name: "lan"
     state: "present"
     network: ["lan", "wg_home"]
@@ -439,7 +436,7 @@ firewall_zones:
     forward: "DROP"
     output: "ACCEPT"
     family: "ipv4"
-  - id: "@zone[1]"
+  - id: "wan"
     name: "wan"
     state: "present"
     network: ["wan", "wg_remote"]
@@ -548,12 +545,10 @@ dropbear:
 
 | Name | Description |
 | :--- | :--- |
-| [flyoverhead.openwrt.batman](roles/batman/README.md) | Ansible role for OpenWrt `B.A.T.M.A.N.` mesh network configuration |
 | [flyoverhead.openwrt.dhcp](roles/dhcp/README.md) | Ansible role for OpenWrt `dhcp` configuration |
 | [flyoverhead.openwrt.dropbear](roles/dropbear/README.md) | Ansible role for OpenWrt `dropbear` configuration |
 | [flyoverhead.openwrt.extroot](roles/extroot/README.md) | Ansible role for OpenWrt `extroot` configuration |
 | [flyoverhead.openwrt.firewall](roles/firewall/README.md) | Ansible role for OpenWrt `firewall` configuration |
-| [flyoverhead.openwrt.mesh11sd](roles/mesh11sd/README.md) | Ansible role for OpenWrt `802.11s` mesh network configuration |
 | [flyoverhead.openwrt.network](roles/network/README.md) | Ansible role for OpenWrt `network` configuration |
 | [flyoverhead.openwrt.pbr](roles/pbr/README.md) | Ansible role for OpenWrt `Policy-Based Routing` configuration |
 | [flyoverhead.openwrt.system](roles/system/README.md) | Ansible role for OpenWrt `system` configuration |
@@ -585,8 +580,6 @@ fLy0v3rH34d
 
 ## TODO
 
-- ~~[802.11s Based Wireless Mesh Networking](https://openwrt.org/docs/guide-user/network/wifi/mesh/80211s)~~
-- ~~[B.A.T.M.A.N.](https://openwrt.org/docs/guide-user/network/wifi/mesh/batman)~~
 - [DDNS client](https://openwrt.org/docs/guide-user/services/ddns/client)
 - ~~[ExtRoot](https://openwrt.org/docs/guide-user/additional-software/extroot_configuration)~~
 - [LED configuration](https://openwrt.org/docs/guide-user/base-system/led_configuration)
@@ -602,3 +595,11 @@ fLy0v3rH34d
 | :---: | :---: |
 | bc1qrc8etpf4a7a50a0mfjyfv6fkzcg0qn3jmv882u | 0x5b872a332C94006F0f8A032D8a5D799E1668bf9e |
 | <img src="https://github.com/flyoverhead/docs/blob/main/images/bitcoin.png?raw=true" alt="drawing" width="200"/> | <img src="https://github.com/flyoverhead/docs/blob/main/images/ethereum.png?raw=true" alt="drawing" width="200"/> |
+
+## Safe UCI migration and local tests
+
+Active configuration roles run [UCI migration preflight](roles/uci_migration/README.md)
+before making changes. For checkout-based role use, add `plugins/action` to the
+controller's `action_plugins` path. Package commits are scoped, and network,
+wireless and ACME reconciliation suppress secret-bearing logs and package diffs.
+See [tests/README.md](tests/README.md) for offline migration and certificate tests.

@@ -1,11 +1,36 @@
 ---
+- name: Validate ACME section ID
+  ansible.builtin.assert:
+    that:
+      - acme_section_id | length > 0
+      - acme_section_id is match('^[A-Za-z0-9_]+$')
+
+- name: Find ACME singleton sections
+  community.openwrt.uci:
+    command: "find_all"
+    config: "acme"
+    type: "acme"
+    find: {}
+  register: named_section_matches
+  changed_when: false
+  check_mode: false
+
+- name: Require a unique ACME singleton
+  ansible.builtin.assert:
+    that:
+      - named_section_matches.result_list is defined
+      - named_section_matches.result_list | length <= 1
+    fail_msg: "Multiple ACME sections found: {{ named_section_matches.result_list | default([]) }}"
+
 # Configure acme settings
 - name: Configure acme settings
-  uci:
-    command: "set"
+  community.openwrt.uci:
+    command: "section"
     config: "acme"
-    section: "@acme[0]"
     type: "acme"
+    name: "{{ acme_section_id }}"
+    find: {}
+    set_find: true
     value:
       account_email: "{{ acme.account_email | default(omit) }}"
       debug: "{{ acme.debug | default(omit) }}"

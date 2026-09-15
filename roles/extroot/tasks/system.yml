@@ -1,7 +1,7 @@
 ---
 # Copy overlay partition content to external USB device
 - name: Copy overlay content to external usb device
-  ansible.builtin.command:
+  community.openwrt.command:
     cmd: "{{ item }}"
     uses_shell: true
   loop:
@@ -15,7 +15,7 @@
 
 # Configure hotplug extras
 - name: Configure hotplug extras
-  ansible.builtin.command:
+  community.openwrt.command:
     cmd: "{{ item }}"
     chdir: "/tmp"
   loop:
@@ -27,7 +27,7 @@
 
 # Configure opkg extras
 - name: Configure opkg extras
-  ansible.builtin.command:
+  community.openwrt.command:
     cmd: "{{ item }}"
     chdir: "/tmp"
   loop:
@@ -39,7 +39,7 @@
 
 # Configure extroot auto restore
 - name: Configure extroot auto restore
-  ansible.builtin.copy:
+  community.openwrt.copy:
     src: "90-extroot-restore"
     dest: "/etc/uci-defaults/90-extroot-restore"
     owner: "root"
@@ -48,7 +48,7 @@
 
 # Add auto restore to sysupgrade configuration
 - name: Add auto restore to sysupgrade.conf
-  ansible.builtin.lineinfile:
+  community.openwrt.lineinfile:
     path: "/etc/sysupgrade.conf"
     line: "/etc/uci-defaults"
     insertafter: "EOF"

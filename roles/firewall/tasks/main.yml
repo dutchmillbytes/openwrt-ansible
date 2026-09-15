@@ -1,4 +1,11 @@
 ---
+- name: Preflight and name firewall sections
+  ansible.builtin.include_role:
+    name: uci_migration
+  vars:
+    uci_migration_selected_packages: ["firewall"]
+  when: "'firewall' not in (uci_migration_prepared_packages | default([]))"
+
 # Configure deaults section
 - name: Configure defaults section
   ansible.builtin.include_tasks: defaults.yml
@@ -33,8 +40,16 @@
   ansible.builtin.include_tasks: nat.yml
   loop: "{{ firewall_nats | default([]) }}"
 
+# Validate the staged candidate before persisting or scheduling a reload.
+- name: Validate candidate firewall rules
+  community.openwrt.command:
+    cmd: fw4 check
+  changed_when: false
+  when: not ansible_check_mode
+
 # Apply changes and reload firewall service
 - name: Apply changes and reload firewall
-  uci:
+  community.openwrt.uci:
     command: commit
+    config: "firewall"
   notify: Reload firewall

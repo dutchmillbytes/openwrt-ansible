@@ -1,43 +1,55 @@
 ---
-# Set state status for firewall ipset
-- name: Set state status for firewall ipset {{ item.id | default('@ipset[-1]') }}
-  ansible.builtin.set_fact:
-    firewall_ipset_state: "{{ item.state | default('present') }}"
+- name: Validate firewall ipset section ID
+  ansible.builtin.assert:
+    that:
+      - item.id is defined
+      - item.id | length > 0
+      - item.id is match('^[A-Za-z0-9_]+$')
+    fail_msg: "Firewall ipsets require a stable named id, got {{ item.id | default('undefined') }}"
 
-# Delete firewall ipset
-- name: Delete firewall ipset {{ item.id }}
-  when: "'absent' in firewall_ipset_state"
-  uci:
+- name: Validate unique firewall ipset identity for {{ item.id }}
+  community.openwrt.uci:
+    command: "find_all"
+    config: "firewall"
+    type: "ipset"
+    find:
+      name: "{{ item.name }}"
+  register: named_section_matches
+  changed_when: false
+  check_mode: false
+
+- name: Require unique firewall ipset identity for {{ item.id }}
+  ansible.builtin.assert:
+    that:
+      - named_section_matches.result_list is defined
+      - named_section_matches.result_list | length <= 1
+    fail_msg: "IP set name {{ item.name }} matched {{ named_section_matches.result_list | default([]) }}"
+
+- name: Remove firewall ipset {{ item.id }}
+  when: item.state | default('present') == 'absent'
+  community.openwrt.uci:
     command: "absent"
     config: "firewall"
     section: "{{ item.id }}"
     type: "ipset"
+    find:
+      name: "{{ item.name }}"
 
-# Create and configure firewall ipset
-- name: Create and configure firewall ipset
-  when: "'present' in firewall_ipset_state"
-  block:
-    # Create firewall ipset
-    - name: Create firewall ipset {{ item.id | default('@ipset[-1]') }}
-      uci:
-        command: "add"
-        config: "firewall"
-        section: "{{ item.id | default('@ipset[-1]') }}"
-        type: "ipset"
-
-    # Configure firewall ipset
-    - name: Configure firewall ipset {{ item.id | default('@ipset[-1]') }}
-      uci:
-        command: "set"
-        config: "firewall"
-        section: "{{ item.id | default('@ipset[-1]') }}"
-        type: "ipset"
-        value:
-          name: "{{ item.name | default(omit) }}"
-          comment: "{{ item.comment | default(omit) }}"
-          match: "{{ item.match | default([]) | join(' ') }}"
-          entry: "{{ item.entry | default([]) | join(' ') }}"
-          family: "{{ item.family | default(omit) }}"
-          maxelem: "{{ item.maxelem | default(omit) }}"
-          loadfile: "{{ item.loadfile | default(omit) }}"
-          enabled: "{{ item.enabled | default(omit) }}"
+- name: Configure firewall ipset {{ item.id }}
+  when: item.state | default('present') == 'present'
+  community.openwrt.uci:
+    command: "section"
+    config: "firewall"
+    type: "ipset"
+    name: "{{ item.id }}"
+    find:
+      name: "{{ item.name }}"
+    set_find: true
+    value:
+      comment: "{{ item.comment | default(omit) }}"
+      match: "{{ item.match | default([]) | join(' ') }}"
+      entry: "{{ item.entry | default([]) | join(' ') }}"
+      family: "{{ item.family | default(omit) }}"
+      maxelem: "{{ item.maxelem | default(omit) }}"
+      loadfile: "{{ item.loadfile | default(omit) }}"
+      enabled: "{{ item.enabled | default(omit) }}"

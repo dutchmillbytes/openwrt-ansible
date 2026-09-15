@@ -1,27 +1,5 @@
 ---
-# Same trick as install.yml: read stdout, not the exit status. Removing is
-# gated on what is actually present because `apk del` on an absent package
-# prints "ERROR: No such package" while still exiting 0 -- so it would look
-# like a successful change on every run.
-- name: Query which unwanted packages are installed
-  ansible.builtin.command:
-    cmd: "apk info -e {{ apk_packages_absent | join(' ') }}"
-  register: apk_absent_query
-  failed_when: false
-  changed_when: false
-  check_mode: false
-
-- name: Determine which packages need removing
-  ansible.builtin.set_fact:
-    apk_to_remove: "{{ apk_packages_absent | intersect(apk_absent_query.stdout_lines | default([])) }}"
-
-- name: Remove {{ apk_to_remove | join(', ') }}
-  ansible.builtin.command:
-    cmd: >-
-      apk del --no-progress
-      {{ '--simulate' if ansible_check_mode else '' }}
-      {{ apk_to_remove | join(' ') }}
-  register: apk_remove
-  changed_when: true
-  check_mode: false
-  when: apk_to_remove | length > 0
+- name: Remove unwanted packages
+  community.openwrt.apk:
+    name: "{{ apk_packages_absent | join(',') }}"
+    state: absent

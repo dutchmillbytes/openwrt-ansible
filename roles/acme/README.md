@@ -87,4 +87,4 @@ OpenWRT `acme` configuration
 
 ## Dependencies
 
-- `gekmihesg.openwrt`
+- `community.openwrt.init`

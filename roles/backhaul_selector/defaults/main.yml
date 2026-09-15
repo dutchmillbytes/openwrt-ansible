@@ -1,0 +1,10 @@
+---
+# Enable for an inventory group to use dynamic backhaul on all its nodes.
+dynamic_backhaul_enabled: false
+dynamic_backhaul_main: false
+backhaul_selector_mesh_device: "phy1-mesh0"
+backhaul_selector_lan_interface: "lan"
+backhaul_selector_bridge_device: "br-lan"
+backhaul_selector_wired_devices: ["lan", "wan"]
+backhaul_selector_poll_interval: 1
+backhaul_selector_failover_delay: 5

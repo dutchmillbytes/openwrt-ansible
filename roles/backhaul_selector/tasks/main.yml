@@ -1,0 +1,60 @@
+---
+- name: Configure wired-preferred backhaul selection
+  when:
+    - dynamic_backhaul_enabled | bool
+    - not (dynamic_backhaul_main | bool)
+  block:
+    - name: Validate backhaul selector configuration
+      ansible.builtin.assert:
+        that:
+          - backhaul_selector_mesh_device is match('^[A-Za-z0-9_.-]+$')
+          - backhaul_selector_lan_interface is match('^[A-Za-z0-9_.-]+$')
+          - backhaul_selector_bridge_device is match('^[A-Za-z0-9_.-]+$')
+          - backhaul_selector_wired_devices | length > 0
+          - backhaul_selector_wired_devices | select('match', '^[A-Za-z0-9_.-]+$') | list | length == backhaul_selector_wired_devices | length
+          - backhaul_selector_poll_interval | int > 0
+          - backhaul_selector_failover_delay | int >= 0
+        fail_msg: "Backhaul selector device names or timing values are invalid"
+
+    - name: Install backhaul selector daemon
+      community.openwrt.template:
+        src: "backhaul-select.sh.j2"
+        dest: "/usr/sbin/backhaul-select"
+        owner: "root"
+        group: "root"
+        mode: "0755"
+        validate: "/bin/ash -n %s"
+      notify: Restart backhaul selector
+
+    - name: Install backhaul selector service
+      community.openwrt.template:
+        src: "backhaul-select.init.j2"
+        dest: "/etc/init.d/backhaul-select"
+        owner: "root"
+        group: "root"
+        mode: "0755"
+        validate: "/bin/ash -n %s"
+      notify: Restart backhaul selector
+
+    - name: Enable and start backhaul selector
+      community.openwrt.service:
+        name: "backhaul-select"
+        enabled: true
+        state: started
+
+- name: Check for an installed backhaul selector service
+  community.openwrt.command:
+    cmd: "test -x /etc/init.d/backhaul-select"
+  register: backhaul_selector_service
+  changed_when: false
+  failed_when: backhaul_selector_service.rc not in [0, 1]
+  when: not (dynamic_backhaul_enabled | bool) or (dynamic_backhaul_main | bool)
+
+- name: Disable the selector when static mesh membership is used
+  community.openwrt.service:
+    name: "backhaul-select"
+    enabled: false
+    state: stopped
+  when:
+    - not (dynamic_backhaul_enabled | bool) or (dynamic_backhaul_main | bool)
+    - backhaul_selector_service.rc | default(1) == 0

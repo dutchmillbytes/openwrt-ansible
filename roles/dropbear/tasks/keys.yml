@@ -59,7 +59,7 @@
     # a key comment can contain quotes, and nesting those inside `sh -c '...'`
     # is how you end up appending something that is not a key.
     - name: Read the deployed authorized_keys
-      ansible.builtin.command:
+      community.openwrt.command:
         cmd: "cat {{ dropbear_authorized_keys_path }}"
       register: dropbear_deployed
       # A device that has never had the file is not an error, it is the case
@@ -80,7 +80,7 @@
     # whatever is missing appended. Comparison is on the trimmed line, so
     # trailing whitespace does not re-append a key that is already there.
     - name: Install authorized_keys
-      ansible.builtin.copy:
+      community.openwrt.copy:
         content: "{{ dropbear_keys_wanted | join('\n') }}\n"
         dest: "{{ dropbear_authorized_keys_path }}"
         owner: "root"

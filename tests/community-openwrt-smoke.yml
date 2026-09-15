@@ -1,0 +1,187 @@
+---
+# Run only against the disposable Docker container described in tests/README.md.
+- name: Verify community.openwrt without a target Python interpreter
+  hosts: openwrt_test
+  gather_facts: false
+  vars:
+    ansible_connection: community.docker.docker
+    ansible_python_interpreter: /python-must-not-be-used
+    openwrt_install_recommended_packages: false
+  pre_tasks:
+    - name: Initialize OpenWrt modules
+      ansible.builtin.import_role:
+        name: community.openwrt.init
+  tasks:
+    - name: Verify the package manager and shell command execution
+      community.openwrt.command:
+        cmd: "printf '%s' shell-ok | cat"
+        uses_shell: true
+      register: shell_result
+      changed_when: false
+
+    - name: Check shell and init results
+      ansible.builtin.assert:
+        that:
+          - shell_result.stdout == 'shell-ok'
+          - openwrt_package_manager == 'apk'
+
+    - name: Create fixture directories
+      community.openwrt.command:
+        cmd: mkdir -p /var/lock /etc/config /etc/init.d
+      changed_when: false
+
+    - name: Install an anonymous UCI fixture
+      community.openwrt.copy:
+        dest: /etc/config/ansible_fixture
+        mode: '0600'
+        content: |
+          config device
+              option name 'br-fixture'
+              list ports 'lan:u*'
+              list ports 'wan:t'
+
+    - name: Verify copy permissions through the native stat module
+      community.openwrt.stat:
+        path: /etc/config/ansible_fixture
+      register: copied_fixture
+
+    - name: Find the anonymous section using community.openwrt
+      community.openwrt.uci:
+        command: find_all
+        config: ansible_fixture
+        type: device
+        find: {name: br-fixture}
+      register: matches
+      changed_when: false
+
+    - name: Assert the documented return field and file permissions
+      ansible.builtin.assert:
+        that:
+          - matches.result_list | length == 1
+          - copied_fixture.stat.exists
+          - copied_fixture.stat.mode == '0600'
+
+    - name: Exercise the repository migration action on the same fixture
+      uci_migrate:
+        packages:
+          ansible_fixture:
+            - type: device
+              identity: [name]
+              entries: [{id: dev_fixture, name: br-fixture}]
+        mode: apply
+        manifest_dir: '{{ smoke_manifest_dir }}'
+      register: migrated
+
+    - name: Reconcile named section and native UCI lists
+      community.openwrt.uci:
+        command: section
+        config: ansible_fixture
+        type: device
+        name: dev_fixture
+        find: {name: br-fixture}
+        set_find: true
+        value:
+          ports: ['lan:u*', 'wan:t']
+          ipv6: '0'
+      register: configured
+
+    - name: Commit only the fixture package
+      community.openwrt.uci:
+        command: commit
+        config: ansible_fixture
+
+    - name: Reconcile the same named section a second time
+      community.openwrt.uci:
+        command: section
+        config: ansible_fixture
+        type: device
+        name: dev_fixture
+        find: {name: br-fixture}
+        set_find: true
+        value:
+          ports: ['lan:u*', 'wan:t']
+          ipv6: '0'
+      register: repeated
+
+    - name: Predict a new section in check mode
+      community.openwrt.uci:
+        command: section
+        config: ansible_fixture
+        type: interface
+        name: check_only
+        value: {proto: dhcp}
+      check_mode: true
+      register: predicted
+
+    - name: Verify check mode did not create the section
+      community.openwrt.command:
+        cmd: uci -q get ansible_fixture.check_only
+      register: absent_after_check
+      changed_when: false
+      failed_when: false
+
+    - name: Inspect preserved list types
+      community.openwrt.command:
+        cmd: uci -N export ansible_fixture
+      register: exported
+      changed_when: false
+
+    - name: Verify migration, idempotence and check mode
+      ansible.builtin.assert:
+        that:
+          - migrated is changed
+          - configured is changed
+          - repeated is not changed
+          - predicted is changed
+          - absent_after_check.rc != 0
+          - '"list ports" in exported.stdout'
+
+    - name: Verify native apk recognizes an installed package
+      community.openwrt.apk:
+        name: busybox
+        state: present
+      register: installed
+
+    - name: Predict installation without network access
+      community.openwrt.apk:
+        name: ansible-test-not-a-real-package
+        state: present
+      check_mode: true
+      register: would_install
+
+    - name: Verify apk change reporting
+      ansible.builtin.assert:
+        that:
+          - installed is not changed
+          - would_install is changed
+
+    - name: Install an isolated service fixture
+      community.openwrt.copy:
+        dest: /etc/init.d/ansible-fixture
+        mode: '0755'
+        content: |
+          #!/bin/sh
+          case "$1" in
+            running) test -f /tmp/ansible-fixture-running ;;
+            start|restart|reload) touch /tmp/ansible-fixture-running ;;
+            stop) rm -f /tmp/ansible-fixture-running ;;
+            *) exit 1 ;;
+          esac
+
+    - name: Start the isolated fixture through the native service module
+      community.openwrt.service:
+        name: ansible-fixture
+        state: started
+      register: service_started
+
+    - name: Reapply the service state
+      community.openwrt.service:
+        name: ansible-fixture
+        state: started
+      register: service_repeated
+
+    - name: Verify service idempotence
+      ansible.builtin.assert:
+        that:
+          - service_started is changed
+          - service_repeated is not changed

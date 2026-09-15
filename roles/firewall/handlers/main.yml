@@ -1,6 +1,6 @@
 ---
 # Reload firewall service
 - name: Reload firewall
-  ansible.builtin.service:
+  community.openwrt.service:
     name: firewall
     state: restarted

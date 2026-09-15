@@ -1,7 +1,15 @@
 ---
+- name: Validate wireless device section ID
+  ansible.builtin.assert:
+    that:
+      - item.id is defined
+      - item.id | length > 0
+      - item.id is match('^[A-Za-z0-9_]+$')
+    fail_msg: "Wireless devices require a stable named id, got {{ item.id | default('undefined') }}"
+
 # Configure wireless device
 - name: Configure wireless device {{ item.id }}
-  uci:
+  community.openwrt.uci:
     command: "set"
     config: "wireless"
     section: "{{ item.id }}"
@@ -12,4 +20,5 @@
       channel: "{{ item.channel | default(omit) }}"
       band: "{{ item.band | default(omit) }}"
       htmode: "{{ item.htmode | default(omit) }}"
+      noscan: "{{ item.noscan | default(omit) }}"
       country: "{{ item.country | default(omit) }}"

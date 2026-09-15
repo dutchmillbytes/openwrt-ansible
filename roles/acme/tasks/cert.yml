@@ -1,57 +1,69 @@
 ---
-# Set state status for cert
-- name: Set state status for cert {{ item.id }}
-  ansible.builtin.set_fact:
-    acme_cert_state: "{{ item.state | default('present') }}"
+- name: Validate ACME certificate section ID
+  ansible.builtin.assert:
+    that:
+      - item.id is defined
+      - item.id | length > 0
+      - item.id is match('^[A-Za-z0-9_]+$')
+    fail_msg: "ACME certificates require a stable named id, got {{ item.id | default('undefined') }}"
 
-# Delete cert
-- name: Delete cert {{ item.id }}
-  when: "'absent' in acme_cert_state"
-  uci:
+- name: Validate unique ACME certificate identity for {{ item.id }}
+  community.openwrt.uci:
+    command: "find_all"
+    config: "acme"
+    type: "cert"
+    find:
+      domains: "{{ item.domains }}"
+  register: named_section_matches
+  changed_when: false
+  check_mode: false
+
+- name: Require unique ACME certificate identity for {{ item.id }}
+  ansible.builtin.assert:
+    that:
+      - named_section_matches.result_list is defined
+      - named_section_matches.result_list | length <= 1
+    fail_msg: >-
+      Certificate domains {{ item.domains }} matched
+      {{ named_section_matches.result_list | default([]) }}
+
+- name: Remove ACME certificate {{ item.id }}
+  when: item.state | default('present') == 'absent'
+  community.openwrt.uci:
     command: "absent"
     config: "acme"
     section: "{{ item.id }}"
     type: "cert"
+    find:
+      domains: "{{ item.domains }}"
 
-# Create and configure cert
-- name: Create and configure cert
-  when: "'present' in acme_cert_state"
-  block:
-    # Create cert
-    - name: Create cert {{ item.id }}
-      uci:
-        command: "add"
-        config: "acme"
-        section: "{{ item.id }}"
-        type: "cert"
-
-    # Configure cert
-    #
-    # `domains` and `credentials` are UCI lists and are passed through as
-    # lists, not joined: the uci module writes an array as a real `list`, and
-    # `credentials` is read with config_list_foreach, which ignores an option.
-    - name: Configure cert {{ item.id }}
-      uci:
-        command: "set"
-        config: "acme"
-        section: "{{ item.id }}"
-        type: "cert"
-        value:
-          enabled: "{{ item.enabled | default(omit) }}"
-          domains: "{{ item.domains | default(omit) }}"
-          validation_method: "{{ item.validation_method | default(omit) }}"
-          webroot: "{{ item.webroot | default(omit) }}"
-          standalone: "{{ item.standalone | default(omit) }}"
-          listen_port: "{{ item.listen_port | default(omit) }}"
-          key_type: "{{ item.key_type | default(omit) }}"
-          keylength: "{{ item.keylength | default(omit) }}"
-          days: "{{ item.days | default(omit) }}"
-          acme_server: "{{ item.acme_server | default(omit) }}"
-          staging: "{{ item.staging | default(omit) }}"
-          use_staging: "{{ item.use_staging | default(omit) }}"
-          cert_profile: "{{ item.cert_profile | default(omit) }}"
-          calias: "{{ item.calias | default(omit) }}"
-          dalias: "{{ item.dalias | default(omit) }}"
-          dns: "{{ item.dns | default(omit) }}"
-          dns_wait: "{{ item.dns_wait | default(omit) }}"
-          credentials: "{{ item.credentials | default(omit) }}"
+# Domains and credentials are UCI lists. One section operation keeps creation,
+# legacy-section migration and configuration in the same check-mode state.
+- name: Configure ACME certificate {{ item.id }}
+  when: item.state | default('present') == 'present'
+  community.openwrt.uci:
+    command: "section"
+    config: "acme"
+    type: "cert"
+    name: "{{ item.id }}"
+    find:
+      domains: "{{ item.domains }}"
+    set_find: true
+    value:
+      enabled: "{{ item.enabled | default(omit) }}"
+      validation_method: "{{ item.validation_method | default(omit) }}"
+      webroot: "{{ item.webroot | default(omit) }}"
+      standalone: "{{ item.standalone | default(omit) }}"
+      listen_port: "{{ item.listen_port | default(omit) }}"
+      key_type: "{{ item.key_type | default(omit) }}"
+      keylength: "{{ item.keylength | default(omit) }}"
+      days: "{{ item.days | default(omit) }}"
+      acme_server: "{{ item.acme_server | default(omit) }}"
+      staging: "{{ item.staging | default(omit) }}"
+      use_staging: "{{ item.use_staging | default(omit) }}"
+      cert_profile: "{{ item.cert_profile | default(omit) }}"
+      calias: "{{ item.calias | default(omit) }}"
+      dalias: "{{ item.dalias | default(omit) }}"
+      dns: "{{ item.dns | default(omit) }}"
+      dns_wait: "{{ item.dns_wait | default(omit) }}"
+      credentials: "{{ item.credentials | default(omit) }}"

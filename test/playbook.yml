@@ -6,8 +6,13 @@
   tags: configure_openwrt
 
   pre_tasks:
+    - name: Initialize Python-free OpenWrt modules
+      ansible.builtin.import_role:
+        name: community.openwrt.init
+      tags: always
+
     - name: Update package cache
-      ansible.builtin.command:
+      community.openwrt.command:
         cmd: "opkg update"
       changed_when: false
 
@@ -15,7 +20,6 @@
     - extroot
     - system
     - network
-    - batman
     - wireless
     - wireguard
     - firewall
@@ -25,6 +29,6 @@
 
   post_tasks:
     - name: Reboot device
-      ansible.builtin.command:
+      community.openwrt.command:
         cmd: "reboot"
       changed_when: false

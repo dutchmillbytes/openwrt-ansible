@@ -15,6 +15,7 @@ OpenWRT `wireless` configuration
 | &emsp;`channel` | Wireless channel (`integer` of `auto`) | `optional` | `string` | `auto` |
 | &emsp;`band` | Wireless band (`2g` or `5g`) | `optional` | `string` | `2g` |
 | &emsp;`htmode` | Wireless channel width | `optional` | `string` | `HT20` |
+| &emsp;`noscan` | Keep configured 2.4 GHz HT40 width despite overlapping BSSes | `optional` | `boolean` | `0` |
 | &emsp;`country` | Country code for adaptive channels and transmission powers | `optional` | `string` | `US` |
 | `wireless_interfaces` | List of [wireless interfaces](https://openwrt.org/docs/guide-user/network/wifi/basic#wi-fi_interfaces) |  | `list of dictionaries` |  |
 | &emsp;`id` | Unique interface ID | `mandatory` | `string` | `iot0` |
@@ -26,6 +27,7 @@ OpenWRT `wireless` configuration
 | &emsp;`disabled` | Disable wireless network | `required` | `boolean` | `0` |
 | &emsp;`ssid` | Wireless network SSID | `required` | `string` | `OpenWrt` |
 | &emsp;`mesh_id` | ID of the mesh network (as defined in IEEE 802.11s) to join wireless interface to | `optional` | `string` | `example_mesh_id` |
+| &emsp;`mesh_fwding` | Forward frames between peers on an 802.11s mesh interface | `optional` | `boolean` | `1` |
 | &emsp;`hidden` | Disable broadcasting of beacon frames to hide ESSID | `optional` | `boolean` | `0` |
 | &emsp;`isolate` | Isolate wireless clients from each other | `optional` | `boolean` | `0` |
 | &emsp;`encryption` | Wireless encryption method | `required` | `string` | `psk2` |
@@ -41,7 +43,7 @@ OpenWRT `wireless` configuration
 
 | Name | Description |
 | :--- | :--- |
-| `Ansible Role: openwrt` | [Ansible role by gekmihesg](https://github.com/gekmihesg/ansible-openwrt) for managing OpenWRT and derivatives |
+| `community.openwrt` | [community.openwrt collection](https://github.com/ansible-collections/community.openwrt) for managing OpenWRT and derivatives |
 
 ## Example Playbook
 

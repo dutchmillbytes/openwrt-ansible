@@ -1,5 +1,7 @@
 ---
 # system section
+system_section_id: "main"
+
 system:
   hostname: ""
   description: ""

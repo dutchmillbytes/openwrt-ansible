@@ -1,7 +1,7 @@
 ---
 # Reload pbr service
 - name: Reload pbr
-  ansible.builtin.service:
+  community.openwrt.service:
     name: pbr
     state: reloaded
     enabled: true

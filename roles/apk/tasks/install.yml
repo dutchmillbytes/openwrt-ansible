@@ -1,39 +1,6 @@
 ---
-# `apk info -e a b c` prints the subset that IS installed, one per line. Its
-# exit status is 1 when any requested package is missing, so the status is not
-# usable as a boolean -- read stdout instead. One round trip for the whole set.
-- name: Query which requested packages are installed
-  ansible.builtin.command:
-    cmd: "apk info -e {{ apk_packages | join(' ') }}"
-  register: apk_installed_query
-  failed_when: false
-  changed_when: false
-  check_mode: false
-
-- name: Determine which packages are missing
-  ansible.builtin.set_fact:
-    apk_missing: "{{ apk_packages | difference(apk_installed_query.stdout_lines | default([])) }}"
-
-# Only when something actually needs installing -- `apk update` takes a few
-# seconds and a no-op run should not pay for it.
-- name: Update package index
-  ansible.builtin.command:
-    cmd: "apk update"
-  changed_when: false
-  when:
-    - apk_update_cache | bool
-    - apk_missing | length > 0
-
-# check_mode is handled with `--simulate` rather than by letting Ansible skip
-# the task, so a --check run reports what would be installed instead of
-# silently showing nothing.
-- name: Install {{ apk_missing | join(', ') }}
-  ansible.builtin.command:
-    cmd: >-
-      apk add --no-progress
-      {{ '--simulate' if ansible_check_mode else '' }}
-      {{ apk_missing | join(' ') }}
-  register: apk_install
-  changed_when: true
-  check_mode: false
-  when: apk_missing | length > 0
+- name: Install requested packages
+  community.openwrt.apk:
+    name: "{{ apk_packages | join(',') }}"
+    state: present
+    update_cache: "{{ apk_update_cache | bool }}"

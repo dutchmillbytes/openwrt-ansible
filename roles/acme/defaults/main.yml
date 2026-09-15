@@ -3,6 +3,8 @@
 # Option names below are taken from the acme-common init script, not from the
 # OpenWrt wiki. In particular there is no `update_uhttpd` option -- wiring a
 # certificate into uhttpd is a separate concern.
+acme_section_id: "main"
+
 acme:
   account_email: ""
   debug: ""
@@ -14,27 +16,7 @@ acme:
 #
 # `domains` and `credentials` are UCI *lists* -- they are passed through as
 # lists, never joined into a string.
-acme_certs:
-  - id: ""
-    state: ""
-    enabled: ""
-    domains: []
-    validation_method: ""
-    webroot: ""
-    standalone: ""
-    listen_port: ""
-    key_type: ""
-    keylength: ""
-    days: ""
-    acme_server: ""
-    staging: ""
-    use_staging: ""
-    cert_profile: ""
-    calias: ""
-    dalias: ""
-    dns: ""
-    dns_wait: ""
-    credentials: []
+acme_certs: []
 
 # Obtain certificates during the play rather than waiting for the nightly
 # cron. Restarting the acme service only registers the cron entry; it does not

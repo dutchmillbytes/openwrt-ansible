@@ -43,7 +43,7 @@ OpenWRT `Policy-Based Routing` configuration
 
 | Name | Description |
 | :--- | :--- |
-| `Ansible Role: openwrt` | [Ansible role by gekmihesg](https://github.com/gekmihesg/ansible-openwrt) for managing OpenWRT and derivatives |
+| `community.openwrt` | [community.openwrt collection](https://github.com/ansible-collections/community.openwrt) for managing OpenWRT and derivatives |
 
 ## Example Playbook
 

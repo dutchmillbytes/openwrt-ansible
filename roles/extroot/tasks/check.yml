@@ -7,18 +7,18 @@
 
 # Check current extroot status
 - name: Check current extroot status
-  uci:
-    command: "get"
+  community.openwrt.uci:
+    command: "find"
     config: "fstab"
-    section: "@mount[0].target"
     type: "mount"
+    option: "target"
+    find: "/overlay"
   register: extroot_status
-  failed_when: >
-    extroot_status.result is undefined and
-    'Entry not found' not in extroot_status.result
+  failed_when: false
+  changed_when: false
 
 # Set extroot status fact
 - name: Set extroot status fact
   ansible.builtin.set_fact:
     extroot_configure: true
-  when: extroot_device not in extroot_status.result
+  when: extroot_status.result | default('') | length == 0

@@ -1,41 +1,56 @@
 ---
-# Set state status for firewall forwarding
-- name: Set state status for firewall forwarding {{ item.id | default('@forwarding[-1]') }}
-  ansible.builtin.set_fact:
-    firewall_forwarding_state: "{{ item.state | default('present') }}"
+- name: Validate firewall forwarding section ID
+  ansible.builtin.assert:
+    that:
+      - item.id is defined
+      - item.id | length > 0
+      - item.id is match('^[A-Za-z0-9_]+$')
+    fail_msg: "Firewall forwardings require a stable named id, got {{ item.id | default('undefined') }}"
 
-# Delete firewall forwarding
-- name: Delete firewall forwarding {{ item.id }}
-  when: "'absent' in firewall_forwarding_state"
-  uci:
+- name: Validate unique firewall forwarding identity for {{ item.id }}
+  community.openwrt.uci:
+    command: "find_all"
+    config: "firewall"
+    type: "forwarding"
+    find:
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
+  register: named_section_matches
+  changed_when: false
+  check_mode: false
+
+- name: Require unique firewall forwarding identity for {{ item.id }}
+  ansible.builtin.assert:
+    that:
+      - named_section_matches.result_list is defined
+      - named_section_matches.result_list | length <= 1
+    fail_msg: >-
+      Forwarding {{ item.src }} to {{ item.dest }} matched
+      {{ named_section_matches.result_list | default([]) }}
+
+- name: Remove firewall forwarding {{ item.id }}
+  when: item.state | default('present') == 'absent'
+  community.openwrt.uci:
     command: "absent"
     config: "firewall"
     section: "{{ item.id }}"
     type: "forwarding"
+    find:
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
 
-# Create and configure firewall forwarding
-- name: Create and configure firewall forwarding
-  when: "'present' in firewall_forwarding_state"
-  block:
-    # Create firewall forwarding
-    - name: Create firewall forwarding {{ item.id | default('@forwarding[-1]') }}
-      uci:
-        command: "add"
-        config: "firewall"
-        section: "{{ item.id | default('@forwarding[-1]') }}"
-        type: "forwarding"
-
-    # Configure firewall forwarding
-    - name: Configure firewall forwarding {{ item.id | default('@forwarding[-1]') }}
-      uci:
-        command: "set"
-        config: "firewall"
-        section: "{{ item.id | default('@forwarding[-1]') }}"
-        type: "forwarding"
-        value:
-          name: "{{ item.id | default(omit) }}"
-          src: "{{ item.src | default(omit) }}"
-          dest: "{{ item.dest | default(omit) }}"
-          family: "{{ item.family | default(omit) }}"
-          ipset: "{{ item.ipset | default(omit) }}"
-          enabled: "{{ item.enabled | default(omit) }}"
+- name: Configure firewall forwarding {{ item.id }}
+  when: item.state | default('present') == 'present'
+  community.openwrt.uci:
+    command: "section"
+    config: "firewall"
+    type: "forwarding"
+    name: "{{ item.id }}"
+    find:
+      src: "{{ item.src }}"
+      dest: "{{ item.dest }}"
+    set_find: true
+    value:
+      family: "{{ item.family | default(omit) }}"
+      ipset: "{{ item.ipset | default(omit) }}"
+      enabled: "{{ item.enabled | default(omit) }}"

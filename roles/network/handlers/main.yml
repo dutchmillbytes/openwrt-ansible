@@ -1,6 +1,6 @@
 ---
 # Reload network service
 - name: Reload network
-  ansible.builtin.service:
+  community.openwrt.service:
     name: network
     state: reloaded

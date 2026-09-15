@@ -1,44 +1,62 @@
 ---
-# Set state status for network route
-- name: Set state status for network route {{ item.id | default('@route[-1]') }}
-  ansible.builtin.set_fact:
-    network_route_state: "{{ item.state | default('present') }}"
+- name: Validate network route section ID
+  ansible.builtin.assert:
+    that:
+      - item.id is defined
+      - item.id | length > 0
+      - item.id is match('^[A-Za-z0-9_]+$')
+      - item.find is defined
+      - item.find is mapping
+      - item.find | length > 0
+    fail_msg: >-
+      Network routes require a stable named id and nonempty semantic find map,
+      got id={{ item.id | default('undefined') }} and
+      find={{ item.find | default('undefined') }}
 
-# Delete network route
-- name: Delete network route {{ item.id }}
-  when: "'absent' in network_route_state"
-  uci:
+- name: Validate unique network route identity for {{ item.id }}
+  community.openwrt.uci:
+    command: "find_all"
+    config: "network"
+    type: "route"
+    find: "{{ item.find }}"
+  register: named_section_matches
+  changed_when: false
+  check_mode: false
+
+- name: Require unique network route identity for {{ item.id }}
+  ansible.builtin.assert:
+    that:
+      - named_section_matches.result_list is defined
+      - named_section_matches.result_list | length <= 1
+    fail_msg: >-
+      Network route identity {{ item.find }} matched
+      {{ named_section_matches.result_list | default([]) }}
+
+- name: Remove network route {{ item.id }}
+  when: item.state | default('present') == 'absent'
+  community.openwrt.uci:
     command: "absent"
     config: "network"
     section: "{{ item.id }}"
     type: "route"
+    find: "{{ item.find | default(omit) }}"
 
-# Create and configure network route
-- name: Create and configure network route
-  when: "'present' in network_route_state"
-  block:
-    # Create network route
-    - name: Create network route {{ item.id | default('@route[-1]') }}
-      uci:
-        command: "add"
-        config: "network"
-        section: "{{ item.id | default('@route[-1]') }}"
-        type: "route"
-
-    # Configure network route
-    - name: Configure network route {{ item.id | default('@route[-1]') }}
-      uci:
-        command: "set"
-        config: "network"
-        section: "{{ item.id | default('@route[-1]') }}"
-        type: "route"
-        value:
-          interface: "{{ item.interface | default(omit) }}"
-          target: "{{ item.target | default(omit) }}"
-          netmask: "{{ item.netmask | default(omit) }}"
-          gateway: "{{ item.gateway | default(omit) }}"
-          table: "{{ item.table | default(omit) }}"
-          source: "{{ item.source | default(omit) }}"
-          type: "{{ item.type | default(omit) }}"
-          proto: "{{ item.proto | default(omit) }}"
-          disabled: "{{ item.disabled | default(omit) }}"
+- name: Configure network route {{ item.id }}
+  when: item.state | default('present') == 'present'
+  community.openwrt.uci:
+    command: "section"
+    config: "network"
+    type: "route"
+    name: "{{ item.id }}"
+    find: "{{ item.find | default(omit) }}"
+    set_find: true
+    value:
+      interface: "{{ item.interface | default(omit) }}"
+      target: "{{ item.target | default(omit) }}"
+      netmask: "{{ item.netmask | default(omit) }}"
+      gateway: "{{ item.gateway | default(omit) }}"
+      table: "{{ item.table | default(omit) }}"
+      source: "{{ item.source | default(omit) }}"
+      type: "{{ item.type | default(omit) }}"
+      proto: "{{ item.proto | default(omit) }}"
+      disabled: "{{ item.disabled | default(omit) }}"

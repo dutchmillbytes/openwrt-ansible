@@ -18,6 +18,7 @@
 
 # Apply changes and reload network service
 - name: Apply changes and reload network
-  uci:
+  community.openwrt.uci:
     command: commit
+    config: "network"
   notify: Reload network

@@ -14,6 +14,7 @@
 
 # Apply changes and reload pbr service
 - name: Apply changes and reload pbr
-  uci:
+  community.openwrt.uci:
     command: commit
+    config: "pbr"
   notify: Reload pbr

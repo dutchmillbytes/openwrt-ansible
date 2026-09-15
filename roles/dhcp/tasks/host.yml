@@ -1,40 +1,55 @@
 ---
-# Set static lease state status for host
-- name: Set static lease state status for host {{ item.id }}
-  ansible.builtin.set_fact:
-    static_lease_state: "{{ item.state | default('present') }}"
+- name: Validate static lease section ID
+  ansible.builtin.assert:
+    that:
+      - item.id is defined
+      - item.id | length > 0
+      - item.id is match('^[A-Za-z0-9_]+$')
+    fail_msg: "Static leases require a stable named id, got {{ item.id | default('undefined') }}"
 
-# Delete static lease for host
-- name: Delete static lease for host {{ item.id }}
-  when: "'absent' in static_lease_state"
-  uci:
+- name: Validate unique static lease identity for {{ item.id }}
+  community.openwrt.uci:
+    command: "find_all"
+    config: "dhcp"
+    type: "host"
+    find:
+      name: "{{ item.name }}"
+  register: named_section_matches
+  changed_when: false
+  check_mode: false
+
+- name: Require unique static lease identity for {{ item.id }}
+  ansible.builtin.assert:
+    that:
+      - named_section_matches.result_list is defined
+      - named_section_matches.result_list | length <= 1
+    fail_msg: >-
+      Static lease name {{ item.name }} matched
+      {{ named_section_matches.result_list | default([]) }}
+
+- name: Remove static lease {{ item.id }}
+  when: item.state | default('present') == 'absent'
+  community.openwrt.uci:
     command: "absent"
     config: "dhcp"
     section: "{{ item.id }}"
     type: "host"
+    find:
+      name: "{{ item.name }}"
 
-# Create and configure static lease for host
-- name: Create and configure static lease for host
-  when: "'present' in static_lease_state"
-  block:
-    # Create static lease for host
-    - name: Create static lease for host {{ item.id }}
-      uci:
-        command: "add"
-        config: "dhcp"
-        section: "{{ item.id | default('@host[-1]') }}"
-        type: "host"
-
-    # Configure static lease for host
-    - name: Configure static lease for host {{ item.id }}
-      uci:
-        command: "set"
-        config: "dhcp"
-        section: "{{ item.id | default('@host[-1]') }}"
-        type: "host"
-        value:
-          name: "{{ item.name | default(omit) }}"
-          ip: "{{ item.ip | default(omit) }}"
-          mac: "{{ item.mac | default(omit) }}"
-          tag: "{{ item.tag | default(omit) }}"
-          dns: "{{ item.dns | default(omit) }}"
+- name: Configure static lease {{ item.id }}
+  when: item.state | default('present') == 'present'
+  community.openwrt.uci:
+    command: "section"
+    config: "dhcp"
+    type: "host"
+    name: "{{ item.id }}"
+    find:
+      name: "{{ item.name }}"
+    set_find: true
+    value:
+      leasetime: "{{ item.leasetime | default(omit) }}"
+      ip: "{{ item.ip | default(omit) }}"
+      mac: "{{ item.mac | default(omit) }}"
+      tag: "{{ item.tag | default(omit) }}"
+      dns: "{{ item.dns | default(omit) }}"

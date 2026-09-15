@@ -1,11 +1,36 @@
 ---
+- name: Validate dnsmasq section ID
+  ansible.builtin.assert:
+    that:
+      - dhcp_dnsmasq_section_id | length > 0
+      - dhcp_dnsmasq_section_id is match('^[A-Za-z0-9_]+$')
+
+- name: Find dnsmasq singleton sections
+  community.openwrt.uci:
+    command: "find_all"
+    config: "dhcp"
+    type: "dnsmasq"
+    find: {}
+  register: named_section_matches
+  changed_when: false
+  check_mode: false
+
+- name: Require a unique dnsmasq singleton
+  ansible.builtin.assert:
+    that:
+      - named_section_matches.result_list is defined
+      - named_section_matches.result_list | length <= 1
+    fail_msg: "Multiple dnsmasq sections found: {{ named_section_matches.result_list | default([]) }}"
+
 # Configure common options
 - name: Configure common options
-  uci:
-    command: "set"
+  community.openwrt.uci:
+    command: "section"
     config: "dhcp"
-    section: "@dnsmasq[0]"
     type: "dnsmasq"
+    name: "{{ dhcp_dnsmasq_section_id }}"
+    find: {}
+    set_find: true
     value:
       authoritative: "{{ dhcp_common.authoritative | default(omit) }}"
       boguspriv: "{{ dhcp_common.boguspriv | default(omit) }}"

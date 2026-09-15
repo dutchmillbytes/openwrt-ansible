@@ -5,69 +5,16 @@ network_globals:
   network_packet_steering: ""
 
 # device section
-network_devices:
-  - id: ""
-    name: ""
-    state: ""
-    type: ""
-    ports: []
-    stp: ""
-    igmp_snooping: ""
-    ipv6: ""
+network_devices: []
 
 # bridge vlans
-bridge_vlans:
-  - state: ""
-    vlan: ""
-    device: ""
-    ports: []
+bridge_vlans: []
 
 # interface section
-network_interfaces:
-  - id: ""
-    state: ""
-    device: ""
-    proto: ""
-    auto: ""
-    force_link: ""
-    ipaddr: ""
-    netmask: ""
-    gateway: ""
-    peerdns: ""
-    dns: []
-    username: ""
-    password: ""
-    mtu: ""
-    ipv6: ""
-    delegate: ""
-    ip6assign: ""
+network_interfaces: []
 
 # rule section
-network_rules:
-  - id: ""
-    state: ""
-    mark: ""
-    in: ""
-    out: ""
-    src: ""
-    dest: ""
-    invert: ""
-    priority: ""
-    lookup: ""
-    goto: ""
-    action: ""
-    disabled: ""
+network_rules: []
 
 # route section
-network_routes:
-  - id: ""
-    state: ""
-    interface: ""
-    target: ""
-    netmask: ""
-    gateway: ""
-    table: ""
-    source: ""
-    type: ""
-    proto: ""
-    disabled: ""
+network_routes: []

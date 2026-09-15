@@ -1,10 +1,11 @@
 ---
 # Configure globals settings
 - name: Configure globals settings
-  uci:
-    command: "set"
+  community.openwrt.uci:
+    command: "section"
     config: "network"
-    section: "globals"
+    name: "globals"
+    find: {}
     type: "globals"
     value:
       ula_prefix: "{{ network_globals.network_ula_prefix | default(omit) }}"

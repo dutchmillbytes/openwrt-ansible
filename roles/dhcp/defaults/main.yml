@@ -1,5 +1,7 @@
 ---
 # dnsmasq section
+dhcp_dnsmasq_section_id: "main"
+
 dhcp_common:
   authoritative: ""
   boguspriv: ""
@@ -28,24 +30,7 @@ dhcp_common:
   allservers: ""
 
 # dhcp section
-dhcp_pools:
-  - id: ""
-    interface: ""
-    state: ""
-    dhcp_option: []
-    force: ""
-    dhcpv4: ""
-    leasetime: ""
-    limit: ""
-    start: ""
-    ra: ""
-    dhcpv6: ""
-    dns_service: ""
+dhcp_pools: []
 
 # host section
-dhcp_leases:
-  - id: ""
-    name: ""
-    state: ""
-    ip: ""
-    mac: ""
+dhcp_leases: []

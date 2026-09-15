@@ -1,13 +1,13 @@
 ---
 # Update opkg cache
 - name: Update opkg cache
-  ansible.builtin.command:
+  community.openwrt.command:
     cmd: "opkg update"
   changed_when: false
 
 # Install wireguard packages
 - name: Install wireguard packages
-  opkg:
+  community.openwrt.opkg:
     name: "{{ item }}"
     state: "present"
   loop: "{{ wireguard_pkgs }}"

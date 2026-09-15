@@ -1,0 +1,105 @@
+#!/bin/ash
+
+# Keep the 802.11s interface running for peering, but expose only one LAN
+# backhaul path by removing mesh from LAN while any wired port has carrier.
+
+MESH_DEVICE="{{ backhaul_selector_mesh_device }}"
+LAN_INTERFACE="{{ backhaul_selector_lan_interface }}"
+BRIDGE_DEVICE="{{ backhaul_selector_bridge_device }}"
+WIRED_DEVICES="{{ backhaul_selector_wired_devices | join(' ') }}"
+POLL_INTERVAL="{{ backhaul_selector_poll_interval | int }}"
+FAILOVER_DELAY="{{ backhaul_selector_failover_delay | int }}"
+SYS_CLASS_NET="${BACKHAUL_SYS_CLASS_NET:-/sys/class/net}"
+STATE_FILE="${BACKHAUL_STATE_FILE:-/var/run/backhaul-select.state}"
+UBUS="${BACKHAUL_UBUS:-ubus}"
+LOGGER="${BACKHAUL_LOGGER:-logger}"
+SLEEP="${BACKHAUL_SLEEP:-sleep}"
+MAX_POLLS="${BACKHAUL_MAX_POLLS:-0}"
+
+failover_polls=$(( (FAILOVER_DELAY + POLL_INTERVAL - 1) / POLL_INTERVAL ))
+[ "$failover_polls" -gt 0 ] || failover_polls=1
+
+current_state=""
+wired_down_polls=0
+polls=0
+
+report_state() {
+	local wanted="$1"
+	[ "$wanted" = "$current_state" ] && return
+	current_state="$wanted"
+	printf '%s\n' "$current_state" > "$STATE_FILE"
+	"$LOGGER" -t backhaul-select "selected $current_state backhaul state"
+}
+
+wired_available() {
+	local device carrier
+	for device in $WIRED_DEVICES; do
+		[ -r "$SYS_CLASS_NET/$device/carrier" ] || continue
+		read -r carrier < "$SYS_CLASS_NET/$device/carrier"
+		[ "$carrier" = "1" ] && return 0
+	done
+	return 1
+}
+
+mesh_available() {
+	[ -d "$SYS_CLASS_NET/$MESH_DEVICE" ]
+}
+
+mesh_attached() {
+	local master
+	[ -L "$SYS_CLASS_NET/$MESH_DEVICE/master" ] || return 1
+	master="$(basename "$(readlink "$SYS_CLASS_NET/$MESH_DEVICE/master")")"
+	[ "$master" = "$BRIDGE_DEVICE" ]
+}
+
+attach_mesh() {
+	local output payload
+	mesh_available || return 1
+	payload="$(printf '{"name":"%s"}' "$MESH_DEVICE")"
+	if ! output="$("$UBUS" -S call "network.interface.$LAN_INTERFACE" add_device "$payload" 2>&1)"; then
+		"$LOGGER" -t backhaul-select "failed to attach $MESH_DEVICE to $LAN_INTERFACE: $output"
+		return 1
+	fi
+}
+
+detach_mesh() {
+	local output payload
+	mesh_available || return 0
+	payload="$(printf '{"name":"%s"}' "$MESH_DEVICE")"
+	if ! output="$("$UBUS" -S call "network.interface.$LAN_INTERFACE" remove_device "$payload" 2>&1)"; then
+		"$LOGGER" -t backhaul-select "failed to detach $MESH_DEVICE from $LAN_INTERFACE: $output"
+		return 1
+	fi
+}
+
+while :; do
+	if wired_available; then
+		# Fail back immediately: allowing wired and mesh to overlap can create
+		# the bridge loop this service exists to prevent.
+		wired_down_polls=0
+		if ! mesh_attached || { detach_mesh && ! mesh_attached; }; then
+			report_state "wired"
+		else
+			report_state "switching-to-wired"
+		fi
+	elif mesh_available; then
+		if mesh_attached; then
+			wired_down_polls="$failover_polls"
+			report_state "wireless"
+		else
+			[ "$wired_down_polls" -ge "$failover_polls" ] || wired_down_polls=$((wired_down_polls + 1))
+			if [ "$wired_down_polls" -ge "$failover_polls" ] && attach_mesh; then
+				report_state "wireless"
+			else
+				report_state "waiting-for-wireless"
+			fi
+		fi
+	else
+		wired_down_polls=0
+		report_state "waiting-for-mesh"
+	fi
+
+	polls=$((polls + 1))
+	[ "$MAX_POLLS" -le 0 ] || [ "$polls" -lt "$MAX_POLLS" ] || break
+	"$SLEEP" "$POLL_INTERVAL"
+done

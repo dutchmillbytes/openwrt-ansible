@@ -5,13 +5,13 @@
 # the service prints "Nightly certificate renewal enabled" and exits. Obtaining
 # a certificate is `/etc/init.d/acme renew`, handled by tasks/issue.yml.
 - name: Reload acme
-  ansible.builtin.service:
+  community.openwrt.service:
     name: "acme"
     state: "restarted"
     enabled: true
 
 # Reload uhttpd service
 - name: Reload uhttpd
-  ansible.builtin.service:
+  community.openwrt.service:
     name: "uhttpd"
     state: "reloaded"

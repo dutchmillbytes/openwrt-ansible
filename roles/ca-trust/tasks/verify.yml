@@ -2,7 +2,7 @@
 # No --no-check-certificate: this only succeeds if the device genuinely trusts
 # the chain, which is the whole point of the role.
 - name: Fetch {{ ca_trust_verify_url }} to prove the chain validates
-  ansible.builtin.command:
+  community.openwrt.command:
     cmd: "wget -q -T 8 -O /dev/null {{ ca_trust_verify_url }}"
   register: ca_trust_verify
   failed_when: false

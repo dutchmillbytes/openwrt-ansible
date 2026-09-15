@@ -1,0 +1,5 @@
+---
+- name: Restart backhaul selector
+  community.openwrt.service:
+    name: "backhaul-select"
+    state: restarted

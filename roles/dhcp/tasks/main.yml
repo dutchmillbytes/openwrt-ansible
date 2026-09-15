@@ -1,4 +1,11 @@
 ---
+- name: Preflight and name dhcp sections
+  ansible.builtin.include_role:
+    name: uci_migration
+  vars:
+    uci_migration_selected_packages: ["dhcp"]
+  when: "'dhcp' not in (uci_migration_prepared_packages | default([]))"
+
 # Configure dnsmasq section
 - name: Configure dnsmasq section
   ansible.builtin.include_tasks: dnsmasq.yml
@@ -15,6 +22,7 @@
 
 # Apply changes and reload DHCP service
 - name: Apply changes and reload dhcp
-  uci:
+  community.openwrt.uci:
     command: commit
+    config: "dhcp"
   notify: Reload dhcp

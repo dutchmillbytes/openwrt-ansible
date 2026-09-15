@@ -1,15 +1,15 @@
 ---
-# Point uhttpd at an acme-issued certificate, force HTTPS, and keep uhttpd
-# reloaded on renewal.
-#
-# Deliberately guarded on the certificate already existing. Issuance runs in
-# the background after the service restart, so on a device's first run the
-# files are not there yet -- and pointing uhttpd at a missing certificate stops
-# it serving HTTPS at all. The guard means the first run configures acme, and
-# a later run wires uhttpd up once there is something to wire.
+# Configure the web server only after a certificate is available. In check
+# mode first issuance is deferred, so missing certificates defer this block.
+- name: Preflight uhttpd section identities
+  ansible.builtin.include_role:
+    name: uci_migration
+  vars:
+    uci_migration_selected_packages: ["uhttpd"]
+  when: "'uhttpd' not in (uci_migration_prepared_packages | default([]))"
 
 - name: Check whether the certificate has been issued
-  ansible.builtin.stat:
+  community.openwrt.stat:
     path: "{{ acme_uhttpd_cert }}"
   register: acme_uhttpd_cert_stat
 
@@ -29,7 +29,7 @@
     # without console access. Stock OpenWrt ships listen_https, but a hardened
     # or hand-edited uhttpd may not have it, so check rather than assume.
     - name: Check that uhttpd listens for HTTPS
-      ansible.builtin.command:
+      community.openwrt.command:
         cmd: "uci -q get uhttpd.{{ acme_uhttpd_section }}.listen_https"
       register: acme_uhttpd_listen
       failed_when: false
@@ -61,7 +61,7 @@
     # and ACME servers follow the redirect to HTTPS without verifying the
     # certificate they are offered on the way.
     - name: Point uhttpd at the acme certificate
-      uci:
+      community.openwrt.uci:
         command: "set"
         config: "uhttpd"
         section: "{{ acme_uhttpd_section }}"
@@ -73,14 +73,15 @@
       notify: Reload uhttpd
 
     - name: Commit uhttpd changes
-      uci:
+      community.openwrt.uci:
         command: "commit"
+        config: "uhttpd"
       notify: Reload uhttpd
 
 # acme-common runs `hotplug-call acme` on issuance and renewal. Without a hook
 # uhttpd would keep serving the old certificate after every renewal.
 - name: Install the uhttpd reload hook
-  ansible.builtin.copy:
+  community.openwrt.copy:
     src: "50-uhttpd"
     dest: "/etc/hotplug.d/acme/50-uhttpd"
     owner: "root"

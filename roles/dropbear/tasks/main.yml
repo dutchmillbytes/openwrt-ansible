@@ -1,4 +1,11 @@
 ---
+- name: Preflight and name dropbear sections
+  ansible.builtin.include_role:
+    name: uci_migration
+  vars:
+    uci_migration_selected_packages: ["dropbear"]
+  when: "'dropbear' not in (uci_migration_prepared_packages | default([]))"
+
 # Install SSH authorized keys
 #
 # Before the dropbear settings, not after: if a settings change is going to
@@ -13,6 +20,7 @@
 
 # Apply changes and reload dropbear service
 - name: Apply changes and reload dropbear
-  uci:
+  community.openwrt.uci:
     command: commit
+    config: "dropbear"
   notify: Reload dropbear

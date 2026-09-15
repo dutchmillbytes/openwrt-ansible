@@ -1,39 +1,81 @@
 ---
+- name: Preflight and name network sections
+  ansible.builtin.include_role:
+    name: uci_migration
+  vars:
+    uci_migration_selected_packages: ["network"]
+  when: "'network' not in (uci_migration_prepared_packages | default([]))"
+
 # Configure globals section
 - name: Configure globals section
-  ansible.builtin.include_tasks: globals.yml
+  ansible.builtin.include_tasks:
+    file: globals.yml
+    apply:
+      no_log: true
+      diff: false
 
 # Configure device section
 - name: Configure device section
-  ansible.builtin.include_tasks: device.yml
+  ansible.builtin.include_tasks:
+    file: device.yml
+    apply:
+      no_log: true
+      diff: false
   loop: "{{ network_devices | default([]) }}"
   loop_control:
+    label: "{{ item.id | default('unnamed') }}"
     extended: true
     
 # Configure bridge vlan section
 - name: Configure bridge vlan section
-  ansible.builtin.include_tasks: bridge-vlan.yml
+  ansible.builtin.include_tasks:
+    file: bridge-vlan.yml
+    apply:
+      no_log: true
+      diff: false
   loop: "{{ bridge_vlans | default([]) }}"
   loop_control:
+    label: "{{ item.id | default('unnamed') }}"
     extended: true
 
 # Configure interface section
 - name: Configure interface section
-  ansible.builtin.include_tasks: interface.yml
+  ansible.builtin.include_tasks:
+    file: interface.yml
+    apply:
+      no_log: true
+      diff: false
   loop: "{{ network_interfaces | default([]) }}"
+  loop_control:
+    label: "{{ item.id | default('unnamed') }}"
 
 # Configure rule section
 - name: Configure rule section
-  ansible.builtin.include_tasks: rule.yml
+  ansible.builtin.include_tasks:
+    file: rule.yml
+    apply:
+      no_log: true
+      diff: false
   loop: "{{ network_rules | default([]) }}"
+  loop_control:
+    label: "{{ item.id | default('unnamed') }}"
 
 # Configure route section
 - name: Configure route section
-  ansible.builtin.include_tasks: route.yml
+  ansible.builtin.include_tasks:
+    file: route.yml
+    apply:
+      no_log: true
+      diff: false
   loop: "{{ network_routes | default([]) }}"
+  loop_control:
+    label: "{{ item.id | default('unnamed') }}"
 
 # Apply changes and reload network service
 - name: Apply changes and reload network
-  uci:
+  community.openwrt.uci:
     command: commit
+    config: "network"
+  no_log: true
+  diff: false
   notify: Reload network

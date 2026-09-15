@@ -1,0 +1,6 @@
+
+# Local controller and collection dependencies
+.venv/
+.collections/
+__pycache__/
+*.py[cod]
