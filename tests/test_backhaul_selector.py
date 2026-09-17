@@ -1,8 +1,11 @@
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
+
+import yaml
 
 os.environ.setdefault("ANSIBLE_LOCAL_TEMP", "/tmp/ansible-tests")
 from ansible.parsing.dataloader import DataLoader
@@ -16,6 +19,8 @@ except ImportError:  # ansible-core 2.18
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = ROOT / "roles/backhaul_selector/templates/backhaul-select.sh.j2"
+INIT_TEMPLATE = ROOT / "roles/backhaul_selector/templates/backhaul-select.init.j2"
+DEFAULTS = ROOT / "roles/backhaul_selector/defaults/main.yml"
 
 
 class BackhaulSelectorTests(unittest.TestCase):
@@ -98,6 +103,22 @@ class BackhaulSelectorTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((self.mesh / "master").is_symlink())
         self.assertEqual(self.state.read_text().strip(), "wireless")
+
+    def test_sysupgrade_preserves_every_boot_artifact(self):
+        init_template = INIT_TEMPLATE.read_text()
+        program = re.search(r'^PROG="([^"]+)"$', init_template, re.MULTILINE).group(1)
+        start = re.search(r"^START=(\d+)$", init_template, re.MULTILINE).group(1)
+        service = INIT_TEMPLATE.name.removesuffix(".init.j2")
+        defaults = yaml.safe_load(DEFAULTS.read_text())
+
+        self.assertEqual(
+            defaults["backhaul_selector_sysupgrade_paths"],
+            [
+                program,
+                f"/etc/init.d/{service}",
+                f"/etc/rc.d/S{start}{service}",
+            ],
+        )
 
 if __name__ == "__main__":
     unittest.main()

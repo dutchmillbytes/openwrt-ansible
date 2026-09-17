@@ -8,3 +8,7 @@ backhaul_selector_bridge_device: "br-lan"
 backhaul_selector_wired_devices: ["lan", "wan"]
 backhaul_selector_poll_interval: 1
 backhaul_selector_failover_delay: 5
+backhaul_selector_sysupgrade_paths:
+  - "/usr/sbin/backhaul-select"
+  - "/etc/init.d/backhaul-select"
+  - "/etc/rc.d/S95backhaul-select"

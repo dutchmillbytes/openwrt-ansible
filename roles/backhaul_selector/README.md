@@ -15,3 +15,9 @@ wired-preferred selector behavior.
 The service uses netifd's `network.interface.<name>.add_device` and
 `remove_device` ubus methods. A selector's wireless mesh interface must have
 an empty static `network` list so netifd does not independently attach it.
+
+The role adds the selector daemon, init script and enabled-service link to
+`/etc/sysupgrade.conf`. Before upgrading an AP that depends on wireless
+backhaul, verify all three are present in `sysupgrade --list-backup`. Without
+them, the restored wireless configuration leaves the mesh device detached
+from LAN and the AP cannot reconnect without Ethernet or console access.
